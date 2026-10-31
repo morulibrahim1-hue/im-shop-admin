@@ -1,0 +1,18 @@
+{
+  "name": "I M SHOP Admin",
+  "short_name": "IM Admin",
+  "description": "Private I M SHOP administration app",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f6fa",
+  "theme_color": "#111827",
+  "icons": [
+    {
+      "src": "assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <meta name="description" content="I M SHOP Admin App">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <title>I M SHOP Admin</title>
+</head>
+<body>
+  <div id="loginView" class="login-wrap">
+    <form id="loginForm" class="login-card">
+      <div class="brand-mark">IM</div>
+      <p class="eyebrow">PRIVATE ADMIN ACCESS</p>
+      <h1>I M SHOP</h1>
+      <p class="muted">অ্যাডমিন প্যানেলে প্রবেশ করুন</p>
+      <label>ইমেইল<input id="email" type="email" autocomplete="username" required placeholder="আপনার অ্যাডমিন ইমেইল"></label>
+      <label>পাসওয়ার্ড<input id="password" type="password" autocomplete="current-password" required placeholder="পাসওয়ার্ড"></label>
+      <button class="primary full" type="submit">লগইন করুন</button>
+      <p id="loginMessage" class="message" aria-live="polite"></p>
+      <small class="muted">শুধু অনুমোদিত অ্যাডমিন/স্টাফের জন্য।</small>
+    </form>
+  </div>
+
+  <div id="appView" class="app hidden">
+    <aside class="sidebar">
+      <div class="side-brand"><span class="brand-mini">IM</span><div><b>I M SHOP</b><small>ADMIN PANEL</small></div></div>
+      <nav id="sideNav">
+        <button class="nav-item active" data-page="dashboard">▦ <span>ড্যাশবোর্ড</span></button>
+        <button class="nav-item" data-page="products">▣ <span>পণ্যসমূহ</span></button>
+        <button class="nav-item" data-page="addProduct">＋ <span>পণ্য যোগ করুন</span></button>
+        <button class="nav-item" data-page="orders">▤ <span>অর্ডারসমূহ</span></button>
+      </nav>
+      <button id="logoutBtn" class="logout">↪ লগআউট</button>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div><span class="eyebrow">I M SHOP / ADMIN</span><h2 id="pageTitle">ড্যাশবোর্ড</h2></div>
+        <div class="admin-chip"><span class="online-dot"></span><span id="adminEmail">Admin</span></div>
+      </header>
+
+      <section id="page-dashboard" class="page">
+        <div class="welcome"><div><p class="eyebrow">OVERVIEW</p><h1>স্বাগতম 👋</h1><p class="muted">আপনার দোকানের আজকের সারসংক্ষেপ</p></div><button class="primary" data-goto="addProduct">＋ নতুন পণ্য</button></div>
+        <div class="stats">
+          <article class="stat"><span>মোট পণ্য</span><strong id="statProducts">—</strong><small>সক্রিয় পণ্য</small></article>
+          <article class="stat"><span>মোট অর্ডার</span><strong id="statOrders">—</strong><small>সকল অর্ডার</small></article>
+          <article class="stat"><span>পেন্ডিং অর্ডার</span><strong id="statPending">—</strong><small>যাচাই প্রয়োজন</small></article>
+          <article class="stat"><span>মোট বিক্রয়</span><strong id="statSales">—</strong><small>বাতিল বাদে</small></article>
+        </div>
+        <div class="panel"><div class="panel-head"><div><h3>সাম্প্রতিক অর্ডার</h3><p class="muted">সর্বশেষ ৫টি অর্ডার</p></div><button class="text-btn" data-goto="orders">সব দেখুন →</button></div><div id="recentOrders" class="table-wrap"><p class="muted pad">লোড হচ্ছে…</p></div></div>
+      </section>
+
+      <section id="page-products" class="page hidden">
+        <div class="panel"><div class="panel-head"><div><h3>পণ্যের তালিকা</h3><p class="muted">আপনার দোকানের পণ্যসমূহ</p></div><button class="primary" data-goto="addProduct">＋ পণ্য যোগ</button></div><div id="productsList" class="table-wrap"><p class="muted pad">লোড হচ্ছে…</p></div></div>
+      </section>
+
+      <section id="page-addProduct" class="page hidden">
+        <div class="panel form-panel"><h3>নতুন পণ্য যোগ করুন</h3><p class="muted">পণ্যের তথ্য পূরণ করে সংরক্ষণ করুন</p>
+          <form id="productForm" class="product-form">
+            <label>পণ্যের নাম *<input id="pName" required maxlength="180" placeholder="যেমন: Men's Hoodie"></label>
+            <label>ক্যাটাগরি<select id="pCategory"><option value="">ক্যাটাগরি নির্বাচন করুন</option></select></label>
+            <div class="two-col"><label>দাম (৳) *<input id="pPrice" type="number" min="0" step="0.01" required></label><label>স্টক *<input id="pStock" type="number" min="0" step="1" value="0" required></label></div>
+            <label>SKU (ঐচ্ছিক)<input id="pSku" maxlength="80" placeholder="পণ্যের কোড"></label>
+            <label>বিবরণ<textarea id="pDescription" rows="4" placeholder="পণ্যের বিস্তারিত"></textarea></label>
+            <label>পণ্যের ছবি (JPG/PNG/WebP, সর্বোচ্চ ৫ MB)<input id="pImage" type="file" accept="image/jpeg,image/png,image/webp"></label>
+            <div id="imagePreview" class="image-preview hidden"></div>
+            <button class="primary" type="submit">পণ্য সংরক্ষণ করুন</button><p id="productMessage" class="message" aria-live="polite"></p>
+          </form>
+        </div>
+      </section>
+
+      <section id="page-orders" class="page hidden">
+        <div class="panel"><div class="panel-head"><div><h3>অর্ডার ব্যবস্থাপনা</h3><p class="muted">অর্ডার দেখুন ও স্ট্যাটাস পরিবর্তন করুন</p></div><button id="refreshOrders" class="secondary">↻ রিফ্রেশ</button></div><div id="ordersList" class="table-wrap"><p class="muted pad">লোড হচ্ছে…</p></div></div>
+      </section>
+      <footer>© I M SHOP · Admin workspace</footer>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
