@@ -1,4 +1,4 @@
-const CACHE = "im-shop-admin-v3";
+const CACHE = "im-shop-admin-v4";
 const CORE = ["./", "./index.html", "./styles.css", "./app.js", "./modules.js", "./config.js", "./manifest.webmanifest", "./assets/icon.svg"];
 
 self.addEventListener("install", event => {
