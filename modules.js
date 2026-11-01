@@ -492,3 +492,22 @@
  }
  document.getElementById("sideNav")?.addEventListener("click",e=>{if(e.target.closest('[data-page="notifications"]'))setTimeout(()=>render().catch(err=>{const el=$("notificationsPanel");if(el)el.textContent=err.message;}),1500);});
 })();
+
+
+/* Store settings workspace: server-backed key/value settings and delivery defaults. */
+(() => {
+ const C=window.IMSHOP_CONFIG||{};if(!window.supabase||!C.SUPABASE_URL||!C.SUPABASE_ANON_KEY)return;
+ const db=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY),$=id=>document.getElementById(id);
+ const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+ async function render(){
+  const el=$("settingsPanel");if(!el)return;
+  el.innerHTML='<p>দোকানের সেটিংস লোড হচ্ছে…</p>';
+  const {data,error}=await db.from("admin_app_settings").select("key,value");
+  if(error){el.innerHTML='<p class="error">সেটিংস লোড হয়নি: '+esc(error.message)+'। ডেটাবেসে admin_app_settings টেবিল ও Admin write policy নিশ্চিত করতে হবে।</p>';return;}
+  const v=Object.fromEntries((data||[]).map(x=>[x.key,x.value?.value??x.value??""]));
+  const fields=[["store_name","দোকানের নাম","I M SHOP"],["phone","যোগাযোগের মোবাইল",""],["support_email","সাপোর্ট ইমেইল",""],["address","দোকানের ঠিকানা",""],["dhaka_delivery_charge","ঢাকার ডেলিভারি চার্জ (৳)","70"],["outside_dhaka_delivery_charge","ঢাকার বাইরের ডেলিভারি চার্জ (৳)","120"],["currency","মুদ্রা","BDT"],["order_prefix","অর্ডার নম্বরের প্রিফিক্স","IM"]];
+  el.innerHTML='<form id="storeSettingsV2" class="module-form"><h3>দোকানের পরিচিতি</h3>'+fields.map(([k,label,def])=>'<label>'+label+'<input name="'+k+'" '+(["dhaka_delivery_charge","outside_dhaka_delivery_charge"].includes(k)?'type="number" min="0" step="1"':'')+' value="'+esc(v[k]??def)+'" '+(k==="store_name"?"required":"")+'></label>').join("")+'<button class="primary" type="submit">সব সেটিংস সংরক্ষণ</button><p id="storeSettingsV2Msg" aria-live="polite"></p></form><p class="muted">এই মানগুলো অ্যাডমিন সেটিংসে সংরক্ষিত হবে। ডেলিভারি চার্জ Checkout-এ স্বয়ংক্রিয়ভাবে প্রয়োগ হচ্ছে—এমন নয়; সেটি অর্ডার তৈরির backend-এ আলাদাভাবে যুক্ত ও পরীক্ষা করতে হবে।';
+  $("storeSettingsV2").onsubmit=async ev=>{ev.preventDefault();const fd=new FormData(ev.currentTarget);const payload=fields.map(([key])=>({key,value:{value:["dhaka_delivery_charge","outside_dhaka_delivery_charge"].includes(key)?Number(fd.get(key)):String(fd.get(key)||"").trim()},updated_at:new Date().toISOString()}));for(const row of payload){if(["dhaka_delivery_charge","outside_dhaka_delivery_charge"].includes(row.key)&&(!Number.isFinite(row.value.value)||row.value.value<0)){$("storeSettingsV2Msg").textContent="ডেলিভারি চার্জ শূন্য বা তার বেশি সংখ্যা হতে হবে।";return;}}const {error}=await db.from("admin_app_settings").upsert(payload,{onConflict:"key"});$("storeSettingsV2Msg").textContent=error?"সংরক্ষণ হয়নি: "+error.message:"দোকানের সেটিংস সার্ভারে সংরক্ষিত হয়েছে।";};
+ }
+ document.getElementById("sideNav")?.addEventListener("click",e=>{if(e.target.closest('[data-page="settings"]'))setTimeout(()=>render().catch(err=>{const el=$("settingsPanel");if(el)el.textContent=err.message;}),1600);});
+})();
