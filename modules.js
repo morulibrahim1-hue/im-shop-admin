@@ -307,3 +307,54 @@
   if(ev.target.closest('[data-page="products"]'))setTimeout(()=>renderProducts().catch(e=>{const el=$("productsList");if(el)el.textContent=e.message;}),550);
  });
 })();
+
+
+/* Customer and sales-report tools: search, date filters, and CSV exports. */
+(() => {
+ const C=window.IMSHOP_CONFIG||{};
+ if(!window.supabase||!C.SUPABASE_URL||!C.SUPABASE_ANON_KEY)return;
+ const db=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY);
+ const $=id=>document.getElementById(id);
+ const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+ const money=v=>"৳"+Number(v||0).toLocaleString("en-BD");
+ function csv(name,rows){
+  const body=rows.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");
+  const blob=new Blob(["\uFEFF"+body],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);
+ }
+ async function customers(){
+  const el=$("customersPanel");if(!el)return;
+  el.innerHTML='<p class="muted">ক্রেতার তথ্য লোড হচ্ছে…</p>';
+  const {data,error}=await db.from("customers").select("*").order("created_at",{ascending:false}).limit(1000);
+  if(error){el.innerHTML='<p class="error">'+esc(error.message)+'</p>';return;}
+  const rows=data||[];
+  const norm=c=>({name:c.full_name||c.name||c.customer_name||"",phone:c.phone||c.mobile||c.phone_number||"",email:c.email||"",date:c.created_at||"",id:c.id||""});
+  const normalized=rows.map(norm);
+  el.innerHTML='<div class="module-kpis"><article><b>'+rows.length+'</b><span>সর্বশেষ ১০০০ ক্রেতা</span></article></div><div class="toolbar"><label>ক্রেতা খুঁজুন<input id="customerV2Search" placeholder="নাম, মোবাইল বা ইমেইল"></label><button id="customerV2Export" class="secondary" type="button">CSV ডাউনলোড</button></div><div class="table-wrap"><table><thead><tr><th>নাম</th><th>মোবাইল</th><th>ইমেইল</th><th>যোগদানের তারিখ</th></tr></thead><tbody>'+normalized.map(c=>'<tr><td>'+esc(c.name||"—")+'</td><td>'+esc(c.phone||"—")+'</td><td>'+esc(c.email||"—")+'</td><td>'+esc(c.date?new Date(c.date).toLocaleDateString("bn-BD"):"—")+'</td></tr>').join("")+'</tbody></table></div>';
+  $("customerV2Search").oninput=e=>{const q=e.target.value.toLowerCase();el.querySelectorAll("tbody tr").forEach(tr=>tr.hidden=!tr.innerText.toLowerCase().includes(q));};
+  $("customerV2Export").onclick=()=>csv("im-shop-customers.csv",[["Name","Phone","Email","Created"],...normalized.map(c=>[c.name,c.phone,c.email,c.date])]);
+ }
+ async function reports(){
+  const el=$("reportsPanel");if(!el)return;
+  el.innerHTML='<p class="muted">বিক্রয় রিপোর্ট তৈরি হচ্ছে…</p>';
+  const {data,error}=await db.from("orders").select("id,order_number,customer_name,total,status,created_at").order("created_at",{ascending:false}).limit(2000);
+  if(error){el.innerHTML='<p class="error">'+esc(error.message)+'</p>';return;}
+  const rows=data||[];
+  el.innerHTML='<div class="toolbar"><label>শুরুর তারিখ<input id="reportV2From" type="date"></label><label>শেষ তারিখ<input id="reportV2To" type="date"></label><button id="reportV2Apply" class="secondary" type="button">রিপোর্ট দেখুন</button><button id="reportV2Export" class="secondary" type="button">CSV ডাউনলোড</button></div><div id="reportV2Summary"></div><div class="table-wrap" id="reportV2Table"></div>';
+  function draw(){
+   const from=$("reportV2From").value,to=$("reportV2To").value;
+   const filtered=rows.filter(x=>(!from||String(x.created_at).slice(0,10)>=from)&&(!to||String(x.created_at).slice(0,10)<=to));
+   const paid=filtered.filter(x=>!["cancelled","failed"].includes(String(x.status).toLowerCase()));
+   const total=paid.reduce((s,x)=>s+Number(x.total||0),0);
+   $("reportV2Summary").innerHTML='<div class="module-kpis"><article><b>'+filtered.length+'</b><span>মোট অর্ডার</span></article><article><b>'+paid.length+'</b><span>বাতিল/ব্যর্থ বাদে</span></article><article><b>'+money(total)+'</b><span>অর্ডার মূল্য (প্রাপ্ত অর্থ নয়)</span></article></div>';
+   $("reportV2Table").innerHTML='<table><thead><tr><th>তারিখ</th><th>অর্ডার</th><th>ক্রেতা</th><th>মোট</th><th>স্ট্যাটাস</th></tr></thead><tbody>'+filtered.slice(0,500).map(x=>'<tr><td>'+new Date(x.created_at).toLocaleDateString("bn-BD")+'</td><td>'+esc(x.order_number||x.id)+'</td><td>'+esc(x.customer_name||"—")+'</td><td>'+money(x.total)+'</td><td>'+esc(x.status)+'</td></tr>').join("")+'</tbody></table>';
+   $("reportV2Export").onclick=()=>csv("im-shop-sales-report.csv",[["Date","Order","Customer","Total","Status"],...filtered.map(x=>[x.created_at,x.order_number||x.id,x.customer_name,x.total,x.status])]);
+  }
+  $("reportV2Apply").onclick=draw;draw();
+ }
+ document.getElementById("sideNav")?.addEventListener("click",ev=>{
+  const b=ev.target.closest("[data-page]");if(!b)return;
+  if(b.dataset.page==="customers")setTimeout(()=>customers().catch(e=>{const el=$("customersPanel");if(el)el.textContent=e.message;}),650);
+  if(b.dataset.page==="reports")setTimeout(()=>reports().catch(e=>{const el=$("reportsPanel");if(el)el.textContent=e.message;}),650);
+ });
+})();
