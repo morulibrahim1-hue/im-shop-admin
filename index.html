@@ -34,6 +34,7 @@
         <button class="nav-item" data-page="addProduct">＋ <span>পণ্য যোগ করুন</span></button>
         <button class="nav-item" data-page="orders">▤ <span>অর্ডারসমূহ</span></button>
         <button class="nav-item" data-page="staff">♙ <span>স্টাফ ম্যানেজমেন্ট</span></button>
+        <button class="nav-item" data-page="settings">⚙ <span>সেটিংস</span></button>
       </nav>
       <button id="logoutBtn" class="logout">↪ লগআউট</button>
     </aside>
@@ -83,6 +84,15 @@
           <div class="staff-note"><b>ভূমিকা:</b> Admin — পূর্ণ নিয়ন্ত্রণ · Manager — পরিচালনার দায়িত্ব · Staff — সীমিত কাজ।</div>
           <div id="staffList" class="table-wrap"><p class="muted pad">স্টাফ তালিকা লোড হচ্ছে…</p></div>
           <p id="staffMessage" class="message" aria-live="polite"></p>
+        </div>
+      </section>
+      <section id="page-settings" class="page hidden">
+        <div class="panel"><div class="panel-head"><div><h3>অ্যাপ সেটিংস</h3><p class="muted">I M SHOP অ্যাডমিন অ্যাপের সেটিংস</p></div></div>
+          <div class="settings-grid">
+            <article class="settings-item"><b>দোকানের তথ্য</b><p class="muted">দোকানের নাম, যোগাযোগ ও ঠিকানা</p><span>পরবর্তী ধাপে সংযুক্ত হবে</span></article>
+            <article class="settings-item"><b>ডেলিভারি সেটিংস</b><p class="muted">ঢাকা ও ঢাকার বাইরের ডেলিভারি চার্জ</p><span>পরবর্তী ধাপে সংযুক্ত হবে</span></article>
+            <article class="settings-item"><b>অ্যাডমিন নিরাপত্তা</b><p class="muted">লগইন ও অনুমতি ব্যবস্থাপনা</p><span>বর্তমানে ইমেইল ও পাসওয়ার্ড লগইন</span></article>
+          </div>
         </div>
       </section>
       <footer>© I M SHOP · Admin workspace</footer>
