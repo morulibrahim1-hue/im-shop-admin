@@ -125,7 +125,7 @@
       const q=search.value.trim().toLocaleLowerCase(),st=filter.value;
       const filtered=rows.filter(x=>(!st||x.status===st)&&[x.order_number,x.customer_name].some(v=>String(v||"").toLocaleLowerCase().includes(q)));
       const values=[["Order number","Customer","Total","Status","Created"],...filtered.map(x=>[x.order_number||x.id,x.customer_name,x.total,x.status,x.created_at])];
-      const csv="\\uFEFF"+values.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\\r\\n");
+      const csv="\uFEFF"+values.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");
       const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
       const a=document.createElement("a");a.href=url;a.download="im-shop-orders.csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
     });
