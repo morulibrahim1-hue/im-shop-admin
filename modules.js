@@ -140,3 +140,27 @@
  const funcs={settings,marketing,delivery,payments,security,notifications:audit};
  const nav=$("sideNav");if(nav&&!nav.dataset.advanced){nav.dataset.advanced="1";nav.addEventListener("click",ev=>{const b=ev.target.closest("[data-page]");if(!b)return;const fn=funcs[b.dataset.page];if(fn)setTimeout(()=>fn().catch(e=>{const id={settings:"settingsPanel",marketing:"marketingPanel",delivery:"deliveryPanel",payments:"paymentsPanel",security:"securityPanel",notifications:"notificationsPanel"}[b.dataset.page];if($(id))$(id).innerHTML='<p class="error">'+esc(e.message)+'</p>'; }),180);if(b.dataset.page==="marketing")setTimeout(()=>{const h=$("marketingPanel");if(h&&!h.querySelector("#bannerForm"))banners().catch(()=>{});},700);});}
 })();
+
+
+/* Full product editor and hierarchical category manager. */
+(() => {
+ const C=window.IMSHOP_CONFIG||{};if(!window.supabase||!C.SUPABASE_URL||!C.SUPABASE_ANON_KEY)return;
+ const db=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY),$=id=>document.getElementById(id);
+ const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+ async function productEditor(){
+  const e=$("productsList");if(!e)return;
+  const [p,c]=await Promise.all([db.from("products").select("id,name,description,sku,category_id,price,stock_quantity,is_active").order("created_at",{ascending:false}).limit(200),db.from("categories").select("id,name").eq("is_active",true).order("sort_order")]);
+  if(p.error||c.error){e.innerHTML='<p class="error">'+esc((p.error||c.error).message)+'</p>';return;}
+  e.innerHTML='<div class="table-wrap"><table><thead><tr><th>নাম ও বিবরণ</th><th>ক্যাটাগরি</th><th>দাম</th><th>স্টক</th><th>SKU</th><th>অবস্থা</th><th>কাজ</th></tr></thead><tbody>'+ (p.data||[]).map(x=>'<tr data-id="'+x.id+'"><td><input class="pn" value="'+esc(x.name)+'" aria-label="পণ্যের নাম"><textarea class="pd" rows="2" aria-label="বিবরণ">'+esc(x.description||"")+'</textarea></td><td><select class="pc"><option value="">নেই</option>'+(c.data||[]).map(k=>'<option value="'+k.id+'" '+(k.id===x.category_id?"selected":"")+'>'+esc(k.name)+'</option>').join("")+'</select></td><td><input class="pp" type="number" min="0" step="0.01" value="'+Number(x.price||0)+'"></td><td><input class="ps" type="number" min="0" step="1" value="'+Number(x.stock_quantity||0)+'"></td><td><input class="pk" value="'+esc(x.sku||"")+'"></td><td>'+(x.is_active?"সক্রিয়":"বন্ধ")+'</td><td><button class="secondary pSave">সংরক্ষণ</button> <button class="secondary pToggle" data-on="'+x.is_active+'">'+(x.is_active?"বন্ধ":"চালু")+'</button></td></tr>').join("")+'</tbody></table></div>';
+  e.querySelectorAll(".pSave").forEach(b=>b.onclick=async()=>{const tr=b.closest("tr"),num=Number(tr.querySelector(".pp").value),stock=Number(tr.querySelector(".ps").value);if(num<0||stock<0||!Number.isInteger(stock)){alert("দাম/স্টক সঠিক নয়");return;}const payload={name:tr.querySelector(".pn").value.trim(),description:tr.querySelector(".pd").value.trim(),category_id:tr.querySelector(".pc").value||null,price:num,stock_quantity:stock,sku:tr.querySelector(".pk").value.trim()||null};if(!payload.name){alert("পণ্যের নাম লিখুন");return;}const {error}=await db.from("products").update(payload).eq("id",tr.dataset.id);alert(error?error.message:"পণ্যের সব তথ্য আপডেট হয়েছে");});
+  e.querySelectorAll(".pToggle").forEach(b=>b.onclick=async()=>{const {error}=await db.from("products").update({is_active:b.dataset.on!=="true"}).eq("id",b.closest("tr").dataset.id);if(error)alert(error.message);else productEditor();});
+ }
+ async function categoryTree(){
+  const e=$("categoriesPanel");if(!e)return;
+  const {data,error}=await db.from("categories").select("id,name,parent_id,is_active,sort_order").order("sort_order");
+  if(error){e.innerHTML='<p class="error">'+esc(error.message)+'</p>';return;}
+  e.innerHTML='<form id="hierCat" class="module-form"><h3>ক্যাটাগরি / সাব-ক্যাটাগরি যোগ</h3><label>নাম<input name="name" required></label><label>মূল ক্যাটাগরি (খালি রাখলে প্রধান ক্যাটাগরি)<select name="parent_id"><option value="">প্রধান ক্যাটাগরি</option>'+(data||[]).filter(x=>!x.parent_id).map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join("")+'</select></label><button class="primary">সংরক্ষণ</button><p id="hierCatMsg"></p></form><div class="table-wrap"><table><thead><tr><th>ক্যাটাগরি</th><th>ধরন</th><th>অবস্থা</th></tr></thead><tbody>'+(data||[]).map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+(x.parent_id?"সাব-ক্যাটাগরি":"প্রধান ক্যাটাগরি")+'</td><td>'+(x.is_active?"সক্রিয়":"বন্ধ")+'</td></tr>').join("")+'</tbody></table></div>';
+  $("hierCat").onsubmit=async ev=>{ev.preventDefault();const f=new FormData(ev.currentTarget);const {error}=await db.from("categories").insert({name:f.get("name").trim(),parent_id:f.get("parent_id")||null,is_active:true,sort_order:(data||[]).length+1});$("hierCatMsg").textContent=error?error.message:"ক্যাটাগরি যোগ হয়েছে";if(!error)categoryTree();};
+ }
+ const nav=$("sideNav");if(nav&&!nav.dataset.fullEditors){nav.dataset.fullEditors="1";nav.addEventListener("click",ev=>{const b=ev.target.closest("[data-page]");if(!b)return;if(b.dataset.page==="products")setTimeout(()=>productEditor().catch(e=>{if($("productsList"))$("productsList").textContent=e.message;}),220);if(b.dataset.page==="categories")setTimeout(()=>categoryTree().catch(e=>{if($("categoriesPanel"))$("categoriesPanel").textContent=e.message;}),220);});}
+})();
