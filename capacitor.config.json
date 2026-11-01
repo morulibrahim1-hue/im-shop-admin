@@ -1,0 +1,9 @@
+{
+  "appId": "com.imshop.admin",
+  "appName": "I M SHOP Admin",
+  "webDir": ".",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  }
+}
