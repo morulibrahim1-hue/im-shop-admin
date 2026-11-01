@@ -1,0 +1,33 @@
+*{box-sizing:border-box}
+body{margin:0;background:#f7f7f8;color:#171923;font-family:Arial,"Noto Sans Bengali",sans-serif}
+.top{height:68px;background:#111827;color:white;display:flex;align-items:center;justify-content:space-between;padding:0 5%;position:sticky;top:0;z-index:5}
+.brand{display:flex;align-items:center;gap:10px;color:white;text-decoration:none;font-size:19px}
+.brand span{background:#f5c542;color:#111827;padding:9px;border-radius:10px;font-weight:bold}
+.cart-link{color:white;text-decoration:none}
+.cart-link strong{background:#f5c542;color:#111827;border-radius:20px;padding:4px 9px}
+.hero{background:linear-gradient(120deg,#172033,#394766);color:white;padding:65px 7%;min-height:240px}
+.hero p,.heading small{color:#e6bd50;letter-spacing:2px;font-size:12px;font-weight:bold}
+.hero h1{font-size:clamp(27px,5vw,44px);line-height:1.35;margin:12px 0}
+.hero span{color:#e4e7ec}
+main{max-width:1100px;margin:35px auto;padding:0 16px}
+.heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.heading h2{margin:5px 0 18px;font-size:25px}
+#search{padding:12px;border:1px solid #ddd;border-radius:9px;max-width:100%;width:240px}
+.categories{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0 24px}
+.categories button{border:1px solid #ddd;background:white;border-radius:25px;padding:9px 17px}
+.categories button.selected{background:#172033;color:white}
+.products{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:17px}
+.product{background:white;border-radius:13px;overflow:hidden;box-shadow:0 3px 14px #0000000b}
+.product img{width:100%;height:190px;object-fit:cover;background:#eee}
+.product-info{padding:14px}
+.product h3{margin:0 0 8px;font-size:17px}
+.price{font-size:19px;font-weight:bold;color:#956c08}
+.stock{font-size:12px;color:#777;margin:8px 0}
+.product button{width:100%;padding:11px;background:#172033;color:white;border:0;border-radius:8px}
+.notice{color:#777;padding:18px 0}
+.cart{background:white;margin:40px 0;padding:20px;border-radius:13px}
+.cart-row{display:flex;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid #eee}
+.cart-row button{border:0;background:#eee;border-radius:6px;padding:5px 10px}
+.cart-total{text-align:right;font-size:20px;margin-top:18px}
+footer{text-align:center;background:#111827;color:#ddd;padding:25px}
+@media(max-width:500px){.hero{padding:45px 22px}.products{grid-template-columns:repeat(2,minmax(0,1fr))}.product img{height:145px}.product-info{padding:10px}.product h3{font-size:15px}}
