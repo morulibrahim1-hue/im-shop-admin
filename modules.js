@@ -247,3 +247,63 @@
   if(ev.target.closest('[data-page="inventory"]'))setTimeout(()=>renderInventory().catch(e=>{const el=$("inventoryPanel");if(el)el.textContent=e.message;}),500);
  });
 })();
+
+
+/* Product module v2: image replacement, featured flag, complete field edit, and safe archive/delete. */
+(() => {
+ const C=window.IMSHOP_CONFIG||{};
+ if(!window.supabase||!C.SUPABASE_URL||!C.SUPABASE_ANON_KEY)return;
+ const db=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY);
+ const $=id=>document.getElementById(id);
+ const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+ const money=v=>"৳"+Number(v||0).toLocaleString("en-BD");
+ async function renderProducts(){
+  const el=$("productsList");if(!el)return;
+  el.innerHTML='<p class="muted pad">পণ্য লোড হচ্ছে…</p>';
+  const [p,c]=await Promise.all([
+   db.from("products").select("id,name,description,sku,category_id,price,stock_quantity,is_active,is_featured,image_url,created_at").order("created_at",{ascending:false}).limit(300),
+   db.from("categories").select("id,name").eq("is_active",true).order("sort_order")
+  ]);
+  if(p.error||c.error){el.innerHTML='<p class="error pad">'+esc((p.error||c.error).message)+'</p>';return;}
+  const products=p.data||[],cats=c.data||[];
+  el.innerHTML='<div class="module-kpis"><article><b>'+products.length+'</b><span>মোট পণ্য</span></article><article><b>'+products.filter(x=>x.is_active).length+'</b><span>সক্রিয় পণ্য</span></article><article><b>'+products.filter(x=>Number(x.stock_quantity||0)<=5).length+'</b><span>কম স্টক</span></article></div><label>পণ্য খুঁজুন<input id="productV2Search" placeholder="নাম বা SKU লিখুন"></label><div class="table-wrap"><table><thead><tr><th>ছবি ও পণ্যের তথ্য</th><th>ক্যাটাগরি</th><th>দাম / স্টক</th><th>ফিচার</th><th>অবস্থা / কাজ</th></tr></thead><tbody>'+products.map(x=>'<tr data-id="'+x.id+'"><td>'+(x.image_url?'<img src="'+esc(x.image_url)+'" alt="" style="width:52px;height:52px;object-fit:cover;border-radius:8px">':'')+'<input class="pv2-name" value="'+esc(x.name)+'" aria-label="পণ্যের নাম"><textarea class="pv2-desc" rows="2" aria-label="বিবরণ">'+esc(x.description||"")+'</textarea><input class="pv2-sku" value="'+esc(x.sku||"")+'" placeholder="SKU"></td><td><select class="pv2-cat"><option value="">ক্যাটাগরি নেই</option>'+cats.map(k=>'<option value="'+k.id+'" '+(k.id===x.category_id?"selected":"")+'>'+esc(k.name)+'</option>').join("")+'</select></td><td><input class="pv2-price" type="number" min="0" step="0.01" value="'+Number(x.price||0)+'" aria-label="দাম"><input class="pv2-stock" type="number" min="0" step="1" value="'+Number(x.stock_quantity||0)+'" aria-label="স্টক"></td><td><label><input class="pv2-featured" type="checkbox" '+(x.is_featured?"checked":"")+'> ফিচার্ড</label><label class="pv2-image-label">নতুন ছবি<input class="pv2-image" type="file" accept="image/jpeg,image/png,image/webp"></label></td><td>'+(x.is_active?'সক্রিয়':'বন্ধ')+'<br><button type="button" class="secondary pv2-save">সব সংরক্ষণ</button> <button type="button" class="secondary pv2-toggle" data-active="'+x.is_active+'">'+(x.is_active?'বন্ধ':'চালু')+'</button> <button type="button" class="secondary pv2-delete">মুছুন</button></td></tr>').join("")+'</tbody></table></div>';
+  $("productV2Search").oninput=ev=>{const q=ev.target.value.toLowerCase();el.querySelectorAll("tbody tr").forEach(tr=>tr.hidden=!tr.innerText.toLowerCase().includes(q));};
+  el.querySelectorAll(".pv2-save").forEach(b=>b.onclick=async()=>{
+   const tr=b.closest("tr"),price=Number(tr.querySelector(".pv2-price").value),stock=Number(tr.querySelector(".pv2-stock").value),name=tr.querySelector(".pv2-name").value.trim(),file=tr.querySelector(".pv2-image").files[0];
+   if(!name||!Number.isFinite(price)||price<0||!Number.isInteger(stock)||stock<0){alert("নাম, দাম ও স্টক সঠিকভাবে দিন।");return;}
+   b.disabled=true;let image_url;
+   try{
+    if(file){
+     if(file.size>5*1024*1024)throw new Error("ছবির সাইজ ৫ MB-এর বেশি হতে পারবে না।");
+     if(!["image/jpeg","image/png","image/webp"].includes(file.type))throw new Error("শুধু JPG, PNG বা WebP ছবি দিন।");
+     const ext=file.name.split(".").pop().toLowerCase(),path="products/"+crypto.randomUUID()+"."+ext;
+     const {error:up}=await db.storage.from("products").upload(path,file,{contentType:file.type,upsert:false});if(up)throw up;
+     image_url=db.storage.from("products").getPublicUrl(path).data.publicUrl;
+    }
+    const payload={name,description:tr.querySelector(".pv2-desc").value.trim(),sku:tr.querySelector(".pv2-sku").value.trim()||null,category_id:tr.querySelector(".pv2-cat").value||null,price,stock_quantity:stock,is_featured:tr.querySelector(".pv2-featured").checked};
+    if(image_url)payload.image_url=image_url;
+    const {error}=await db.from("products").update(payload).eq("id",tr.dataset.id);if(error)throw error;
+    renderProducts();
+   }catch(e){alert("পণ্য সংরক্ষণ হয়নি: "+e.message);b.disabled=false;}
+  });
+  el.querySelectorAll(".pv2-toggle").forEach(b=>b.onclick=async()=>{
+   b.disabled=true;const {error}=await db.from("products").update({is_active:b.dataset.active!=="true"}).eq("id",b.closest("tr").dataset.id);
+   if(error)alert(error.message);else renderProducts();b.disabled=false;
+  });
+  el.querySelectorAll(".pv2-delete").forEach(b=>b.onclick=async()=>{
+   const id=b.closest("tr").dataset.id;
+   const {count,error}=await db.from("order_items").select("id",{count:"exact",head:true}).eq("product_id",id);
+   if(error){alert("অর্ডার-সংযোগ যাচাই করা যায়নি: "+error.message);return;}
+   if((count||0)>0){
+    if(!confirm("এই পণ্য পুরোনো অর্ডারে আছে। স্থায়ীভাবে মুছলে অর্ডারের তথ্য নষ্ট হতে পারে। পণ্যটি শুধু বন্ধ করবেন?"))return;
+    const {error:e}=await db.from("products").update({is_active:false}).eq("id",id);if(e)alert(e.message);else renderProducts();return;
+   }
+   if(!confirm("এই পণ্য স্থায়ীভাবে মুছবেন?"))return;
+   b.disabled=true;const {error:e}=await db.from("products").delete().eq("id",id);
+   if(e)alert("পণ্য মুছতে সমস্যা: "+e.message);else renderProducts();b.disabled=false;
+  });
+ }
+ document.getElementById("sideNav")?.addEventListener("click",ev=>{
+  if(ev.target.closest('[data-page="products"]'))setTimeout(()=>renderProducts().catch(e=>{const el=$("productsList");if(el)el.textContent=e.message;}),550);
+ });
+})();
