@@ -32,13 +32,13 @@
     return !!data && data.is_active === true && data.role === "admin";
   }
   async function refreshAll() {
-    await Promise.allSettled([loadDashboard(), loadProducts(), loadCategories(), loadOrders()]);
+    await Promise.allSettled([loadDashboard(), loadProducts(), loadCategories(), loadOrders(), loadStaff()]);
   }
   function navigate(page) {
     document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
     $("page-" + page).classList.remove("hidden");
     document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.page === page));
-    const titles = {dashboard:"ড্যাশবোর্ড",products:"পণ্যসমূহ",addProduct:"পণ্য যোগ করুন",orders:"অর্ডারসমূহ"};
+    const titles = {dashboard:"ড্যাশবোর্ড",products:"পণ্যসমূহ",addProduct:"পণ্য যোগ করুন",orders:"অর্ডারসমূহ",staff:"স্টাফ ম্যানেজমেন্ট"};
     $("pageTitle").textContent = titles[page] || "ড্যাশবোর্ড";
   }
   async function loadDashboard() {
@@ -82,6 +82,45 @@
       const {error:e} = await db.rpc("admin_update_order_status",{p_order_id:sel.dataset.order,p_status:sel.value});
       if (e) { toast("স্ট্যাটাস পরিবর্তন হয়নি: " + e.message); sel.disabled=false; await loadOrders(); }
       else { toast("অর্ডারের স্ট্যাটাস আপডেট হয়েছে"); await Promise.all([loadOrders(),loadDashboard()]); }
+    }));
+  }
+  async function loadStaff() {
+    const box = $("staffList");
+    if (!box) return;
+    const {data,error} = await db.from("staff_profiles")
+      .select("user_id,full_name,role,is_active,created_at")
+      .order("created_at",{ascending:false});
+    if (error) {
+      box.innerHTML = '<p class="pad error">স্টাফ তালিকা আনা যায়নি: ' + escapeHtml(error.message) + '</p>';
+      return;
+    }
+    if (!data?.length) {
+      box.innerHTML = '<p class="pad muted">এখনো কোনো স্টাফ প্রোফাইল নেই।</p>';
+      return;
+    }
+    box.innerHTML = '<table><thead><tr><th>নাম</th><th>ভূমিকা</th><th>অ্যাকাউন্ট</th><th>ইউজার আইডি</th></tr></thead><tbody>' +
+      data.map(s => '<tr><td>' + escapeHtml(s.full_name || "নাম দেওয়া হয়নি") + '</td><td><select class="staff-role" data-user="' + escapeHtml(s.user_id) + '">' +
+        ['admin','manager','staff'].map(r => '<option value="' + r + '"' + (s.role===r?' selected':'') + '>' + ({admin:'Admin',manager:'Manager',staff:'Staff'}[r]) + '</option>').join('') +
+        '</select></td><td><label class="staff-active"><input type="checkbox" class="staff-status" data-user="' + escapeHtml(s.user_id) + '"' + (s.is_active?' checked':'') + '> সক্রিয়</label></td><td><code>' + escapeHtml(s.user_id) + '</code></td></tr>').join('') + '</tbody></table>';
+    box.querySelectorAll(".staff-role").forEach(sel => sel.addEventListener("change", async () => {
+      if (sel.dataset.user === currentUser.id && sel.value !== "admin") {
+        toast("নিজের অ্যাডমিন ভূমিকা এখান থেকে পরিবর্তন করা যাবে না।"); await loadStaff(); return;
+      }
+      sel.disabled = true;
+      const {error:e} = await db.from("staff_profiles").update({role:sel.value}).eq("user_id",sel.dataset.user);
+      if (e) { toast("ভূমিকা পরিবর্তন হয়নি: " + e.message); }
+      else { toast("স্টাফের ভূমিকা আপডেট হয়েছে।"); }
+      await loadStaff();
+    }));
+    box.querySelectorAll(".staff-status").forEach(chk => chk.addEventListener("change", async () => {
+      if (chk.dataset.user === currentUser.id && !chk.checked) {
+        toast("নিজের অ্যাকাউন্ট এখান থেকে বন্ধ করা যাবে না।"); await loadStaff(); return;
+      }
+      chk.disabled = true;
+      const {error:e} = await db.from("staff_profiles").update({is_active:chk.checked}).eq("user_id",chk.dataset.user);
+      if (e) toast("অবস্থা পরিবর্তন হয়নি: " + e.message);
+      else toast("স্টাফ অ্যাকাউন্টের অবস্থা আপডেট হয়েছে।");
+      await loadStaff();
     }));
   }
   async function addProduct(e) {
@@ -136,6 +175,7 @@
   document.addEventListener("click",e=>{const b=e.target.closest("[data-goto]");if(b)navigate(b.dataset.goto);});
   $("productForm").addEventListener("submit",addProduct);
   $("refreshOrders").addEventListener("click",loadOrders);
+  $("refreshStaff").addEventListener("click",loadStaff);
   $("pImage").addEventListener("change",()=>{const f=$("pImage").files[0], box=$("imagePreview");if(!f){box.classList.add("hidden");return;}box.innerHTML=`<img alt="ছবির প্রিভিউ" src="${URL.createObjectURL(f)}">`;box.classList.remove("hidden");});
   init();
   if ("serviceWorker" in navigator) window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
