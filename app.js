@@ -38,7 +38,7 @@
     document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
     $("page-" + page).classList.remove("hidden");
     document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.page === page));
-    const titles = {dashboard:"ড্যাশবোর্ড",products:"পণ্যসমূহ",addProduct:"পণ্য যোগ করুন",orders:"অর্ডারসমূহ",staff:"স্টাফ ম্যানেজমেন্ট"};
+    const titles = {dashboard:"ড্যাশবোর্ড",products:"পণ্যসমূহ",addProduct:"পণ্য যোগ করুন",orders:"অর্ডারসমূহ",staff:"স্টাফ ম্যানেজমেন্ট",settings:"সেটিংস"};
     $("pageTitle").textContent = titles[page] || "ড্যাশবোর্ড";
   }
   async function loadDashboard() {
