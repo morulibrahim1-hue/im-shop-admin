@@ -1,0 +1,72 @@
+name: Build I M SHOP Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/android-apk.yml'
+      - 'index.html'
+      - 'styles.css'
+      - 'app.js'
+      - 'config.js'
+      - 'icon.svg'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get source code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Prepare app files
+        run: |
+          mkdir -p www/assets
+          cp index.html styles.css app.js config.js www/
+          cp icon.svg www/assets/icon.svg
+
+      - name: Install Capacitor
+        run: |
+          npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
+
+      - name: Configure Capacitor
+        run: |
+          cat > capacitor.config.json <<'EOF'
+          {
+            "appId": "com.imshop.admin",
+            "appName": "I M SHOP Admin",
+            "webDir": "www"
+          }
+          EOF
+
+      - name: Add Android platform
+        run: npx cap add android
+
+      - name: Sync Android
+        run: npx cap sync android
+
+      - name: Build APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: im-shop-admin-android-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
