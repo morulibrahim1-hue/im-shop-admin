@@ -70,22 +70,66 @@
     $("productsList").innerHTML = error ? `<p class="pad error">${escapeHtml(error.message)}</p>` :
       (data?.length ? `<table><thead><tr><th>পণ্য</th><th>দাম</th><th>স্টক</th><th>অবস্থা</th></tr></thead><tbody>${data.map(x=>`<tr><td>${escapeHtml(x.name)}</td><td>${money(x.price)}</td><td>${x.stock_quantity ?? 0}</td><td>${x.is_active?"সক্রিয়":"বন্ধ"}</td></tr>`).join("")}</tbody></table>` : '<p class="pad muted">এখনো কোনো পণ্য যোগ করা হয়নি।</p>');
   }
-  function orderTable(rows, actions) {
+  function orderTable(rows) {
     if (!rows.length) return '<p class="pad muted">এখনো কোনো অর্ডার নেই।</p>';
-    return `<table><thead><tr><th>অর্ডার</th><th>ক্রেতা</th><th>মোট</th><th>অবস্থা</th>${actions?"<th>পরিবর্তন</th>":""}</tr></thead><tbody>` +
-      rows.map(x=>`<tr><td>${escapeHtml(x.order_number)}</td><td>${escapeHtml(x.customer_name)}</td><td>${money(x.total)}</td><td><span class="status">${statusNames[x.status]||escapeHtml(x.status)}</span></td>` +
-      (actions?`<td><select class="status-select" data-order="${x.id}">${Object.entries(statusNames).map(([k,v])=>`<option value="${k}" ${x.status===k?"selected":""}>${v}</option>`).join("")}</select></td>`:"")+
-      `</tr>`).join("") + "</tbody></table>";
+    return '<div class="toolbar"><label>অর্ডার খুঁজুন<input id="orderSearch" type="search" placeholder="অর্ডার নম্বর বা ক্রেতার নাম"></label><label>স্ট্যাটাস বাছাই<select id="orderStatusFilter"><option value="">সব স্ট্যাটাস</option>'+Object.entries(statusNames).map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join("")+'</select></label><button id="orderExport" class="secondary" type="button">CSV ডাউনলোড</button></div><div id="orderSummary" class="module-kpis"></div><div class="table-wrap"><table><thead><tr><th>অর্ডার নম্বর</th><th>ক্রেতা</th><th>মোট</th><th>বর্তমান অবস্থা</th><th>স্ট্যাটাস পরিবর্তন</th><th>তারিখ</th></tr></thead><tbody id="orderRows"></tbody></table></div>';
   }
   async function loadOrders() {
-    const {data,error} = await db.from("orders").select("id,order_number,customer_name,total,status,created_at").order("created_at",{ascending:false}).limit(100);
-    $("ordersList").innerHTML = error ? `<p class="pad error">${escapeHtml(error.message)}</p>` : orderTable(data||[],true);
-    $("ordersList").querySelectorAll(".status-select").forEach(sel => sel.addEventListener("change", async () => {
-      sel.disabled = true;
-      const {error:e} = await db.rpc("admin_update_order_status",{p_order_id:sel.dataset.order,p_status:sel.value});
-      if (e) { toast("স্ট্যাটাস পরিবর্তন হয়নি: " + e.message); sel.disabled=false; await loadOrders(); }
-      else { toast("অর্ডারের স্ট্যাটাস আপডেট হয়েছে"); await Promise.all([loadOrders(),loadDashboard()]); }
-    }));
+    const box = $("ordersList");
+    if (!box) return;
+    box.innerHTML = '<p class="pad muted">অর্ডার লোড হচ্ছে…</p>';
+    const {data,error} = await db.from("orders")
+      .select("id,order_number,customer_name,total,status,created_at")
+      .order("created_at",{ascending:false}).limit(1000);
+    if (error) {
+      box.innerHTML = '<p class="pad error">অর্ডার লোড হয়নি: ' + escapeHtml(error.message) + '</p>';
+      return;
+    }
+    const rows = data || [];
+    if (!rows.length) {
+      box.innerHTML = '<p class="pad muted">এখনো কোনো অর্ডার নেই।</p>';
+      return;
+    }
+    box.innerHTML = orderTable(rows);
+    const search = $("orderSearch"), filter = $("orderStatusFilter");
+    const body = $("orderRows"), summary = $("orderSummary");
+    function draw() {
+      const q = search.value.trim().toLocaleLowerCase();
+      const st = filter.value;
+      const filtered = rows.filter(x =>
+        (!st || x.status === st) &&
+        [x.order_number,x.customer_name].some(v => String(v || "").toLocaleLowerCase().includes(q))
+      );
+      summary.innerHTML = '<article><b>'+filtered.length+'</b><span>দেখানো অর্ডার</span></article><article><b>'+money(filtered.filter(x=>!["cancelled","failed"].includes(String(x.status||"").toLowerCase())).reduce((n,x)=>n+Number(x.total||0),0))+'</b><span>বাতিল বাদে অর্ডার মূল্য</span></article>';
+      body.innerHTML = filtered.map(x => '<tr><td>'+escapeHtml(x.order_number||x.id)+'</td><td>'+escapeHtml(x.customer_name||"—")+'</td><td>'+money(x.total)+'</td><td><span class="status">'+escapeHtml(statusNames[x.status]||x.status||"—")+'</span></td><td><select class="status-select" data-order="'+escapeHtml(x.id)+'" aria-label="অর্ডারের নতুন অবস্থা">'+Object.entries(statusNames).map(([k,v])=>'<option value="'+k+'" '+(x.status===k?"selected":"")+'>'+v+'</option>').join("")+'</select></td><td>'+escapeHtml(x.created_at?new Date(x.created_at).toLocaleString("bn-BD"):"—")+'</td></tr>').join("") || '<tr><td colspan="6">কোনো অর্ডার মেলেনি।</td></tr>';
+      body.querySelectorAll(".status-select").forEach(sel => sel.addEventListener("change", async () => {
+        const previous = rows.find(x=>x.id===sel.dataset.order)?.status;
+        if (!previous || sel.value===previous) return;
+        sel.disabled = true;
+        const {error:e} = await db.rpc("admin_update_order_status",{p_order_id:sel.dataset.order,p_status:sel.value});
+        if (e) {
+          toast("স্ট্যাটাস পরিবর্তন হয়নি: "+e.message);
+          sel.value = previous; sel.disabled = false;
+        } else {
+          const item=rows.find(x=>x.id===sel.dataset.order);
+          if(item) item.status=sel.value;
+          toast("অর্ডারের স্ট্যাটাস আপডেট হয়েছে");
+          draw();
+          await loadDashboard();
+        }
+      }));
+    }
+    search.addEventListener("input",draw);
+    filter.addEventListener("change",draw);
+    $("orderExport").addEventListener("click",()=>{
+      const q=search.value.trim().toLocaleLowerCase(),st=filter.value;
+      const filtered=rows.filter(x=>(!st||x.status===st)&&[x.order_number,x.customer_name].some(v=>String(v||"").toLocaleLowerCase().includes(q)));
+      const values=[["Order number","Customer","Total","Status","Created"],...filtered.map(x=>[x.order_number||x.id,x.customer_name,x.total,x.status,x.created_at])];
+      const csv="\\uFEFF"+values.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\\r\\n");
+      const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+      const a=document.createElement("a");a.href=url;a.download="im-shop-orders.csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    });
+    draw();
   }
   async function loadStaff() {
     const box = $("staffList");
