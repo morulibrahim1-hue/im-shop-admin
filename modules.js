@@ -386,3 +386,27 @@
  }
  document.getElementById("sideNav")?.addEventListener("click",e=>{const b=e.target.closest('[data-page="orders"]');if(b)setTimeout(()=>load().catch(err=>{const el=$("ordersList");if(el)el.textContent=err.message;}),700);});
 })();
+
+
+/* Security workspace v2: assign a role to an existing active staff member and edit role permissions. */
+(() => {
+ const C=window.IMSHOP_CONFIG||{};if(!window.supabase||!C.SUPABASE_URL||!C.SUPABASE_ANON_KEY)return;
+ const db=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY),$=id=>document.getElementById(id);
+ const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+ async function render(){
+  const el=$("securityPanel");if(!el)return;
+  el.innerHTML='<p>নিরাপত্তা ও অনুমতি লোড হচ্ছে…</p>';
+  const [s,r,p]=await Promise.all([
+   db.from("staff_profiles").select("user_id,full_name,role,is_active").order("created_at",{ascending:false}),
+   db.from("admin_app_staff_roles").select("*"),
+   db.from("admin_app_permissions").select("*").order("role_key").order("module_key")
+  ]);
+  const err=s.error||r.error||p.error;
+  if(err){el.innerHTML='<p class="error">ডেটা লোড হয়নি: '+esc(err.message)+'</p>';return;}
+  const staff=(s.data||[]).filter(x=>x.is_active&&x.role!=="admin");
+  el.innerHTML='<h3>স্টাফের ভূমিকা নির্ধারণ</h3><form id="secRoleForm" class="module-form"><label>সক্রিয় স্টাফ<select name="user_id" required><option value="">স্টাফ নির্বাচন করুন</option>'+staff.map(x=>'<option value="'+esc(x.user_id)+'">'+esc(x.full_name||x.user_id)+' · '+esc(x.user_id)+'</option>').join("")+'</select></label><label>কাজের ভূমিকা<select name="role_key"><option value="manager">ম্যানেজার</option><option value="product_manager">পণ্য ব্যবস্থাপক</option><option value="order_manager">অর্ডার ব্যবস্থাপক</option><option value="inventory_manager">ইনভেন্টরি ব্যবস্থাপক</option><option value="marketing_manager">মার্কেটিং ব্যবস্থাপক</option><option value="support">কাস্টমার সাপোর্ট</option></select></label><button class="primary">ভূমিকা সংরক্ষণ</button><p id="secRoleMsg" aria-live="polite"></p></form><h3>বর্তমান স্টাফ ভূমিকা</h3><div class="table-wrap"><table><thead><tr><th>স্টাফ</th><th>মূল ভূমিকা</th><th>বিশেষ ভূমিকা</th></tr></thead><tbody>'+staff.map(x=>{const z=(r.data||[]).find(y=>y.user_id===x.user_id);return '<tr><td>'+esc(x.full_name||x.user_id)+'</td><td>'+esc(x.role)+'</td><td>'+esc(z?.role_key||"নির্ধারিত নয়")+'</td></tr>';}).join("")+'</tbody></table></div><h3>রোলভিত্তিক অনুমতি</h3><p class="muted">প্রতিটি রোল ও মডিউলের দেখা, তৈরি, সম্পাদনা ও মুছার অনুমতি আলাদাভাবে সংরক্ষণ করুন।</p><div class="table-wrap"><table><thead><tr><th>রোল</th><th>মডিউল</th><th>দেখা</th><th>তৈরি</th><th>সম্পাদনা</th><th>মুছুন</th><th>সংরক্ষণ</th></tr></thead><tbody>'+ (p.data||[]).map((x,i)=>'<tr data-perm="'+i+'"><td>'+esc(x.role_key)+'</td><td>'+esc(x.module_key)+'</td>'+["can_view","can_create","can_edit","can_delete"].map(k=>'<td><input type="checkbox" data-field="'+k+'" '+(x[k]?'checked':'')+' aria-label="'+k+'"></td>').join("")+'<td><button class="secondary secPermSave" type="button">সংরক্ষণ</button></td></tr>').join("")+'</tbody></table></div><p id="secPermMsg" aria-live="polite"></p><h3>নিরাপত্তা অবস্থা</h3><p>অ্যাডমিন লগইন Supabase Auth দিয়ে যাচাই হয়। OTP/MFA সক্রিয় আছে—এমন দাবি করা হচ্ছে না; Supabase Auth-এ আলাদাভাবে যাচাই ও কনফিগার করতে হবে।';
+  $("secRoleForm").onsubmit=async ev=>{ev.preventDefault();const fd=new FormData(ev.currentTarget),uid=fd.get("user_id"),role=fd.get("role_key");if(!uid)return;const {error}=await db.from("admin_app_staff_roles").upsert({user_id:uid,role_key:role,updated_at:new Date().toISOString()},{onConflict:"user_id"});$("secRoleMsg").textContent=error?"সংরক্ষণ হয়নি: "+error.message:"স্টাফের ভূমিকা সংরক্ষিত হয়েছে।";if(!error)setTimeout(render,500);};
+  el.querySelectorAll(".secPermSave").forEach(btn=>btn.onclick=async()=>{const tr=btn.closest("tr"),idx=Number(tr.dataset.perm),row=p.data[idx],patch={};tr.querySelectorAll("[data-field]").forEach(ch=>patch[ch.dataset.field]=ch.checked);btn.disabled=true;const {error}=await db.from("admin_app_permissions").update(patch).eq("role_key",row.role_key).eq("module_key",row.module_key);btn.disabled=false;$("secPermMsg").textContent=error?"অনুমতি সংরক্ষণ হয়নি: "+error.message:"অনুমতি আপডেট হয়েছে।";});
+ }
+ document.getElementById("sideNav")?.addEventListener("click",e=>{const b=e.target.closest('[data-page="security"]');if(b)setTimeout(()=>render().catch(err=>{const el=$("securityPanel");if(el)el.textContent=err.message;}),1100);});
+})();
