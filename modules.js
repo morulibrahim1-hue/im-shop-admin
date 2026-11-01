@@ -330,7 +330,7 @@
   const rows=data||[];
   const norm=c=>({name:c.full_name||c.name||c.customer_name||"",phone:c.phone||c.mobile||c.phone_number||"",email:c.email||"",date:c.created_at||"",id:c.id||""});
   const normalized=rows.map(norm);
-  el.innerHTML='<div class="module-kpis"><article><b>'+rows.length+'</b><span>সর্বশেষ ১০০০ ক্রেতা</span></article></div><div class="toolbar"><label>ক্রেতা খুঁজুন<input id="customerV2Search" placeholder="নাম, মোবাইল বা ইমেইল"></label><button id="customerV2Export" class="secondary" type="button">CSV ডাউনলোড</button></div><div class="table-wrap"><table><thead><tr><th>নাম</th><th>মোবাইল</th><th>ইমেইল</th><th>যোগদানের তারিখ</th></tr></thead><tbody>'+normalized.map(c=>'<tr><td>'+esc(c.name||"—")+'</td><td>'+esc(c.phone||"—")+'</td><td>'+esc(c.email||"—")+'</td><td>'+esc(c.date?new Date(c.date).toLocaleDateString("bn-BD"):"—")+'</td></tr>').join("")+'</tbody></table></div>';
+  el.innerHTML='<div class="module-kpis"><article><b>'+rows.length+'</b><span>সর্বশেষ ১০০০ ক্রেতা</span></article></div><div class="toolbar"><label>ক্রেতা খুঁজুন<input id="customerV2Search" placeholder="নাম, মোবাইল বা ইমেইল"></label><button id="customerV2Export" class="secondary" type="button">CSV ডাউনলোড</button></div><div class="table-wrap"><table><thead><tr><th>নাম</th><th>ইমেইল</th><th>যোগদানের তারিখ</th></tr></thead><tbody>'+normalized.map(c=>'<tr><td>'+esc(c.name||"—")+'</td><td>'+esc(c.phone||"—")+'</td><td>'+esc(c.email||"—")+'</td><td>'+esc(c.date?new Date(c.date).toLocaleDateString("bn-BD"):"—")+'</td></tr>').join("")+'</tbody></table></div>';
   $("customerV2Search").oninput=e=>{const q=e.target.value.toLowerCase();el.querySelectorAll("tbody tr").forEach(tr=>tr.hidden=!tr.innerText.toLowerCase().includes(q));};
   $("customerV2Export").onclick=()=>csv("im-shop-customers.csv",[["Name","Phone","Email","Created"],...normalized.map(c=>[c.name,c.phone,c.email,c.date])]);
  }
@@ -371,18 +371,19 @@
  let rows=[];
  async function load(){
   const el=$("ordersList");if(!el)return;
-  const {data,error}=await db.from("orders").select("id,order_number,customer_name,customer_phone,total,status,created_at").order("created_at",{ascending:false}).limit(1000);
+  const {data,error}=await db.from("orders").select("id,order_number,customer_name,total,status,created_at").order("created_at",{ascending:false}).limit(1000);
   if(error){el.innerHTML='<p class="error">'+esc(error.message)+'</p>';return;}
   rows=data||[];
   el.innerHTML='<div class="toolbar"><label>অর্ডার খুঁজুন<input id="orderDeskSearch" placeholder="অর্ডার নম্বর, ক্রেতা বা মোবাইল"></label><label>স্ট্যাটাস<select id="orderDeskStatus"><option value="">সব স্ট্যাটাস</option><option value="pending">Pending</option><option value="confirmed">Confirmed</option><option value="processing">Processing</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option></select></label><button id="orderDeskExport" class="secondary" type="button">CSV ডাউনলোড</button></div><div id="orderDeskSummary" class="module-kpis"></div><div id="orderDeskRows" class="table-wrap"></div>';
   function draw(){
    const q=$("orderDeskSearch").value.toLowerCase(),st=$("orderDeskStatus").value;
-   const filtered=rows.filter(x=>(!st||x.status===st)&&[x.order_number,x.customer_name,x.customer_phone].some(v=>String(v||"").toLowerCase().includes(q)));
+   const filtered=rows.filter(x=>(!st||x.status===st)&&[x.order_number,x.customer_name].some(v=>String(v||"").toLowerCase().includes(q)));
    $("orderDeskSummary").innerHTML='<article><b>'+filtered.length+'</b><span>মিল পাওয়া অর্ডার</span></article><article><b>'+money(filtered.filter(x=>x.status!=="cancelled").reduce((s,x)=>s+Number(x.total||0),0))+'</b><span>বাতিল বাদে অর্ডার মূল্য</span></article>';
-   $("orderDeskRows").innerHTML='<table><thead><tr><th>অর্ডার</th><th>ক্রেতা</th><th>মোবাইল</th><th>মোট</th><th>স্ট্যাটাস</th><th>তারিখ</th></tr></thead><tbody>'+filtered.map(x=>'<tr><td>'+esc(x.order_number||x.id)+'</td><td>'+esc(x.customer_name||"—")+'</td><td>'+esc(x.customer_phone||"—")+'</td><td>'+money(x.total)+'</td><td>'+esc(x.status)+'</td><td>'+esc(x.created_at?new Date(x.created_at).toLocaleString("bn-BD"):"—")+'</td></tr>').join("")+'</tbody></table>';
+   $("orderDeskRows").innerHTML='<table><thead><tr><th>অর্ডার</th><th>ক্রেতা</th><th>মোবাইল</th><th>মোট</th><th>স্ট্যাটাস / পরিবর্তন</th><th>তারিখ</th></tr></thead><tbody>'+filtered.map(x=>'<tr><td>'+esc(x.order_number||x.id)+'</td><td>'+esc(x.customer_name||"—")+'</td><td>'+esc(x.customer_phone||"—")+'</td><td>'+money(x.total)+'</td><td>'+esc(x.status)+'</td><td>'+esc(x.created_at?new Date(x.created_at).toLocaleString("bn-BD"):"—")+'</td></tr>').join("")+'</tbody></table>';
    $("orderDeskExport").onclick=()=>{const lines=[["Order","Customer","Phone","Total","Status","Created"],...filtered.map(x=>[x.order_number||x.id,x.customer_name,x.customer_phone,x.total,x.status,x.created_at])];const csv=lines.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");const u=URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=u;a.download="im-shop-orders.csv";a.click();URL.revokeObjectURL(u);};
   }
   $("orderDeskSearch").oninput=draw;$("orderDeskStatus").onchange=draw;draw();
+  $("orderDeskRows").addEventListener("change",async ev=>{const sel=ev.target.closest(".orderDeskStatusEdit");if(!sel)return;sel.disabled=true;const {error}=await db.rpc("admin_update_order_status",{p_order_id:sel.dataset.id,p_status:sel.value});if(error){alert("স্ট্যাটাস পরিবর্তন হয়নি: "+error.message);sel.disabled=false;}else{const found=rows.find(x=>x.id===sel.dataset.id);if(found)found.status=sel.value;draw();}});
  }
  document.getElementById("sideNav")?.addEventListener("click",e=>{const b=e.target.closest('[data-page="orders"]');if(b)setTimeout(()=>load().catch(err=>{const el=$("ordersList");if(el)el.textContent=err.message;}),700);});
 })();
