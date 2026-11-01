@@ -471,3 +471,24 @@
  }
  document.getElementById("sideNav")?.addEventListener("click",e=>{if(e.target.closest('[data-page="marketing"]'))setTimeout(()=>render().catch(err=>{const el=$("marketingPanel");if(el)el.textContent=err.message;}),1500);});
 })();
+
+
+/* Notification center v2: create, search, export and delete admin notices. */
+(() => {
+ const C=window.IMSHOP_CONFIG||{};if(!window.supabase||!C.SUPABASE_URL||!C.SUPABASE_ANON_KEY)return;
+ const db=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY),$=id=>document.getElementById(id);
+ const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+ async function render(){
+  const el=$("notificationsPanel");if(!el)return;
+  const {data,error}=await db.from("admin_app_notifications").select("id,title,message,created_at").order("created_at",{ascending:false}).limit(500);
+  if(error){el.innerHTML='<p class="error">নোটিফিকেশন লোড হয়নি: '+esc(error.message)+'</p>';return;}
+  const rows=data||[];
+  el.innerHTML='<form id="noticeV2Form" class="module-form"><h3>নতুন অ্যাডমিন নোটিফিকেশন</h3><label>শিরোনাম<input name="title" required maxlength="150"></label><label>বিস্তারিত বার্তা<textarea name="message" rows="3" required maxlength="3000"></textarea></label><button class="primary">নোটিফিকেশন তৈরি</button><p id="noticeV2Msg" aria-live="polite"></p></form><div class="toolbar"><label>নোটিফিকেশন খুঁজুন<input id="noticeV2Search" placeholder="শিরোনাম বা বার্তা"></label><button id="noticeV2Export" class="secondary" type="button">CSV ডাউনলোড</button></div><div id="noticeV2List" class="table-wrap"></div><p class="muted">এগুলো অ্যাডমিন প্যানেলের নোটিশ। গ্রাহকের ফোনে push notification বা SMS পাঠাতে আলাদা provider ও অনুমতি কনফিগার করতে হবে।</p>';
+  function draw(){const q=$("noticeV2Search").value.toLowerCase(),filtered=rows.filter(x=>(x.title||"").toLowerCase().includes(q)||(x.message||"").toLowerCase().includes(q));$("noticeV2List").innerHTML='<table><thead><tr><th>শিরোনাম</th><th>বার্তা</th><th>তারিখ</th><th>কাজ</th></tr></thead><tbody>'+filtered.map(x=>'<tr data-notice="'+esc(x.id)+'"><td>'+esc(x.title)+'</td><td>'+esc(x.message)+'</td><td>'+esc(x.created_at?new Date(x.created_at).toLocaleString("bn-BD"):"—")+'</td><td><button class="secondary noticeV2Delete" type="button">মুছুন</button></td></tr>').join("")+'</tbody></table>';el.querySelectorAll(".noticeV2Delete").forEach(btn=>btn.onclick=async()=>{const id=btn.closest("tr").dataset.notice;if(!confirm("এই নোটিফিকেশনটি মুছবেন?"))return;const {error}=await db.from("admin_app_notifications").delete().eq("id",id);if(error)alert("মুছা যায়নি: "+error.message);else{const at=rows.findIndex(x=>x.id===id);if(at>=0)rows.splice(at,1);draw();}});}
+  $("noticeV2Search").oninput=draw;
+  $("noticeV2Export").onclick=()=>{const lines=[["Title","Message","Created"],...rows.map(x=>[x.title,x.message,x.created_at])],csv=lines.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n"),url=URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"})),a=document.createElement("a");a.href=url;a.download="im-shop-notifications.csv";a.click();URL.revokeObjectURL(url);};
+  $("noticeV2Form").onsubmit=async ev=>{ev.preventDefault();const fd=new FormData(ev.currentTarget);const {error}=await db.from("admin_app_notifications").insert({title:String(fd.get("title")).trim(),message:String(fd.get("message")).trim()});$("noticeV2Msg").textContent=error?"নোটিফিকেশন তৈরি হয়নি: "+error.message:"নোটিফিকেশন তৈরি হয়েছে।";if(!error){const {data}=await db.from("admin_app_notifications").select("id,title,message,created_at").order("created_at",{ascending:false}).limit(500);if(data){rows.splice(0,rows.length,...data);draw();ev.currentTarget.reset();}}};
+  draw();
+ }
+ document.getElementById("sideNav")?.addEventListener("click",e=>{if(e.target.closest('[data-page="notifications"]'))setTimeout(()=>render().catch(err=>{const el=$("notificationsPanel");if(el)el.textContent=err.message;}),1500);});
+})();
