@@ -33,6 +33,7 @@
         <button class="nav-item" data-page="products">▣ <span>পণ্যসমূহ</span></button>
         <button class="nav-item" data-page="addProduct">＋ <span>পণ্য যোগ করুন</span></button>
         <button class="nav-item" data-page="orders">▤ <span>অর্ডারসমূহ</span></button>
+        <button class="nav-item" data-page="staff">♙ <span>স্টাফ ম্যানেজমেন্ট</span></button>
       </nav>
       <button id="logoutBtn" class="logout">↪ লগআউট</button>
     </aside>
@@ -75,6 +76,14 @@
 
       <section id="page-orders" class="page hidden">
         <div class="panel"><div class="panel-head"><div><h3>অর্ডার ব্যবস্থাপনা</h3><p class="muted">অর্ডার দেখুন ও স্ট্যাটাস পরিবর্তন করুন</p></div><button id="refreshOrders" class="secondary">↻ রিফ্রেশ</button></div><div id="ordersList" class="table-wrap"><p class="muted pad">লোড হচ্ছে…</p></div></div>
+      </section>
+      <section id="page-staff" class="page hidden">
+        <div class="panel">
+          <div class="panel-head"><div><h3>স্টাফ ম্যানেজমেন্ট</h3><p class="muted">কর্মীদের ভূমিকা ও অ্যাকাউন্টের অবস্থা নিয়ন্ত্রণ করুন</p></div><button id="refreshStaff" class="secondary">↻ রিফ্রেশ</button></div>
+          <div class="staff-note"><b>ভূমিকা:</b> Admin — পূর্ণ নিয়ন্ত্রণ · Manager — পরিচালনার দায়িত্ব · Staff — সীমিত কাজ।</div>
+          <div id="staffList" class="table-wrap"><p class="muted pad">স্টাফ তালিকা লোড হচ্ছে…</p></div>
+          <p id="staffMessage" class="message" aria-live="polite"></p>
+        </div>
       </section>
       <footer>© I M SHOP · Admin workspace</footer>
     </main>
