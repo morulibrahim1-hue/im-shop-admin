@@ -57,3 +57,29 @@
   db.auth.onAuthStateChange((event,session)=>{if(session?.user) setTimeout(boot,100);else active=false;});
   db.auth.getSession().then(({data})=>{if(data.session?.user)boot();});
 })();
+
+/* Product administration enhancements: safe inline editing using known products columns. */
+(() => {
+  const cfg=window.IMSHOP_CONFIG||{}, $=id=>document.getElementById(id);
+  if(!window.supabase||!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY)return;
+  const db=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
+  const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  async function render(){
+    const el=$("productsList");if(!el)return;
+    el.innerHTML='<p class="pad muted">পণ্য লোড হচ্ছে…</p>';
+    const {data,error}=await db.from("products").select("id,name,sku,price,stock_quantity,is_active,is_featured,created_at").order("created_at",{ascending:false}).limit(200);
+    if(error){el.innerHTML='<p class="pad error">'+esc(error.message)+'</p>';return;}
+    if(!data?.length){el.innerHTML='<p class="pad muted">এখনো কোনো পণ্য নেই। “পণ্য যোগ করুন” থেকে যোগ করুন।</p>';return;}
+    el.innerHTML='<div class="module-kpis"><article><b>'+data.length+'</b><span>পণ্য</span></article><article><b>'+data.filter(p=>p.is_active).length+'</b><span>সক্রিয়</span></article><article><b>'+data.filter(p=>Number(p.stock_quantity||0)<=5).length+'</b><span>কম স্টক</span></article></div><div class="table-wrap"><table><thead><tr><th>পণ্য</th><th>দাম</th><th>স্টক</th><th>অবস্থা</th><th>কাজ</th></tr></thead><tbody>'+data.map(p=>'<tr><td><b>'+esc(p.name)+'</b><br><small>'+esc(p.sku||"SKU নেই")+'</small></td><td><input class="edit-price" type="number" min="0" step="0.01" value="'+Number(p.price||0)+'" aria-label="দাম"></td><td><input class="edit-stock" type="number" min="0" step="1" value="'+Number(p.stock_quantity||0)+'" aria-label="স্টক"></td><td>'+(p.is_active?'সক্রিয়':'বন্ধ')+'</td><td><button class="secondary save-product" data-id="'+p.id+'">সংরক্ষণ</button> <button class="secondary toggle-product" data-id="'+p.id+'" data-active="'+p.is_active+'">'+(p.is_active?'বন্ধ':'সক্রিয়')+'</button></td></tr>').join("")+'</tbody></table></div>';
+    el.querySelectorAll(".save-product").forEach(b=>b.onclick=async()=>{const tr=b.closest("tr"),price=Number(tr.querySelector(".edit-price").value),stock=Number(tr.querySelector(".edit-stock").value);if(price<0||stock<0||!Number.isFinite(price)||!Number.isInteger(stock)){alert("দাম ও স্টক সঠিকভাবে লিখুন।");return;}b.disabled=true;const {error}=await db.from("products").update({price,stock_quantity:stock}).eq("id",b.dataset.id);if(error)alert("সংরক্ষণ হয়নি: "+error.message);else alert("পণ্যের দাম ও স্টক সংরক্ষিত হয়েছে।");b.disabled=false;});
+    el.querySelectorAll(".toggle-product").forEach(b=>b.onclick=async()=>{b.disabled=true;const {error}=await db.from("products").update({is_active:b.dataset.active!=="true"}).eq("id",b.dataset.id);if(error)alert("অবস্থা পরিবর্তন হয়নি: "+error.message);else render();});
+  }
+  function hook(){
+    const nav=$("sideNav");if(nav&&!nav.dataset.productEnhance){nav.dataset.productEnhance="1";nav.addEventListener("click",e=>{if(e.target.closest('[data-page="products"]'))setTimeout(render,120);});}
+    const exp=$("reportsPanel");if(exp&&!exp.dataset.csv){exp.dataset.csv="1";const b=document.createElement("button");b.className="secondary";b.textContent="রিপোর্ট CSV ডাউনলোড";b.style.margin="12px 0";b.onclick=async()=>{const {data,error}=await db.from("orders").select("order_number,customer_name,total,status,created_at").order("created_at",{ascending:false}).limit(2000);if(error){alert(error.message);return;}const q=v=>'"'+String(v??"").replace(/"/g,'""')+'"';const csv=["Order,Customer,Total,Status,Date",...(data||[]).map(x=>[x.order_number,x.customer_name,x.total,x.status,x.created_at].map(q).join(","))].join("\\n");const url=URL.createObjectURL(new Blob(["\\ufeff"+csv],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download="im-shop-orders.csv";a.click();URL.revokeObjectURL(url);};exp.prepend(b);}
+  }
+  const wait=setInterval(()=>{if($("sideNav")&&$("reportsPanel")){clearInterval(wait);hook();}},300);
+  const original=window.addEventListener;document.addEventListener("click",e=>{if(e.target.closest('[data-page="reports"]'))setTimeout(hook,150);});
+  db.auth.getSession().then(({data})=>{if(data.session?.user)setTimeout(hook,500);});
+  db.auth.onAuthStateChange((event,session)=>{if(session?.user)setTimeout(hook,300);});
+})();
