@@ -83,3 +83,60 @@
   db.auth.getSession().then(({data})=>{if(data.session?.user)setTimeout(hook,500);});
   db.auth.onAuthStateChange((event,session)=>{if(session?.user)setTimeout(hook,300);});
 })();
+
+
+/* Advanced admin modules backed by additive admin_app_* tables. */
+(() => {
+ const C=window.IMSHOP_CONFIG||{};if(!window.supabase||!C.SUPABASE_URL||!C.SUPABASE_ANON_KEY)return;
+ const db=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY),$=id=>document.getElementById(id);
+ const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+ const money=v=>"৳"+Number(v||0).toLocaleString("en-BD");
+ const msg=(id,s)=>{const e=$(id);if(e)e.textContent=s;};
+ const table=(headers,rows)=>'<div class="table-wrap"><table><thead><tr>'+headers.map(x=>'<th>'+x+'</th>').join("")+'</tr></thead><tbody>'+(rows.length?rows.join(""):'<tr><td colspan="'+headers.length+'">কোনো তথ্য নেই</td></tr>')+'</tbody></table></div>';
+ async function rows(t,cols="*"){const r=await db.from(t).select(cols).order("created_at",{ascending:false}).limit(150);if(r.error)throw r.error;return r.data||[];}
+ async function settings(){
+  const e=$("settingsPanel");if(!e)return;
+  let {data,error}=await db.from("admin_app_settings").select("key,value");
+  if(error){e.innerHTML='<p class="error">'+esc(error.message)+' — প্রথমে SQL migration চালান।</p>';return;}
+  const v=Object.fromEntries((data||[]).map(x=>[x.key,x.value]));
+  e.innerHTML='<form id="advSettings" class="module-form"><h3>দোকানের তথ্য</h3><label>দোকানের নাম<input name="store_name" value="'+esc(v.store_name?.value||"I M SHOP")+'"></label><label>মোবাইল<input name="phone" value="'+esc(v.phone?.value||"")+'"></label><label>ঠিকানা<textarea name="address">'+esc(v.address?.value||"")+'</textarea></label><button class="primary">সার্ভারে সংরক্ষণ</button><p id="advSettingsMsg"></p></form>';
+  $("advSettings").onsubmit=async ev=>{ev.preventDefault();const f=new FormData(ev.currentTarget);for(const k of ["store_name","phone","address"]){const {error}=await db.from("admin_app_settings").upsert({key:k,value:{value:f.get(k)},updated_at:new Date().toISOString()});if(error){msg("advSettingsMsg",error.message);return;}}msg("advSettingsMsg","সেটিংস সার্ভারে সংরক্ষিত হয়েছে।");};
+ }
+ async function coupons(){
+  const e=$("marketingPanel");if(!e)return;
+  const data=await rows("admin_app_coupons");
+  e.innerHTML='<form id="couponForm" class="module-form"><h3>নতুন কুপন</h3><label>কুপন কোড<input name="code" required maxlength="40"></label><label>ধরন<select name="discount_type"><option value="fixed">নির্দিষ্ট টাকা</option><option value="percent">শতকরা</option></select></label><label>ডিসকাউন্ট<input name="discount_value" type="number" min="0" step="0.01" required></label><label>ন্যূনতম অর্ডার<input name="min_order" type="number" min="0" value="0"></label><label>সর্বোচ্চ ব্যবহার (ঐচ্ছিক)<input name="max_uses" type="number" min="1"></label><label>মেয়াদ শেষ<input name="expires_at" type="datetime-local"></label><button class="primary">কুপন তৈরি</button><p id="couponMsg"></p></form>'+table(["কোড","ছাড়","ব্যবহার","অবস্থা","কাজ"],data.map(x=>'<tr><td>'+esc(x.code)+'</td><td>'+esc(x.discount_type==="percent"?x.discount_value+"%":money(x.discount_value))+'</td><td>'+x.used_count+'/'+(x.max_uses??"∞")+'</td><td>'+(x.is_active?"সক্রিয়":"বন্ধ")+'</td><td><button class="secondary couponToggle" data-id="'+x.id+'" data-on="'+x.is_active+'">'+(x.is_active?"বন্ধ":"চালু")+'</button></td></tr>'));
+  $("couponForm").onsubmit=async ev=>{ev.preventDefault();const f=new FormData(ev.currentTarget);const payload={code:String(f.get("code")).trim().toUpperCase(),discount_type:f.get("discount_type"),discount_value:Number(f.get("discount_value")),min_order:Number(f.get("min_order")||0),max_uses:f.get("max_uses")?Number(f.get("max_uses")):null,expires_at:f.get("expires_at")?new Date(f.get("expires_at")).toISOString():null};const {error}=await db.from("admin_app_coupons").insert(payload);msg("couponMsg",error?error.message:"কুপন তৈরি হয়েছে");if(!error)coupons();};
+  e.querySelectorAll(".couponToggle").forEach(b=>b.onclick=async()=>{const {error}=await db.from("admin_app_coupons").update({is_active:b.dataset.on!=="true"}).eq("id",b.dataset.id);if(error)alert(error.message);else coupons();});
+ }
+ async function banners(){
+  const e=$("marketingPanel");if(!e)return;
+  const data=await rows("admin_app_banners");
+  const existing=e.innerHTML;
+  e.innerHTML='<form id="bannerForm" class="module-form"><h3>স্টোর ব্যানার / স্লাইডার যোগ</h3><label>শিরোনাম<input name="title" required></label><label>ছবির URL<input name="image_url" type="url" placeholder="https://..."></label><label>লিংক (ঐচ্ছিক)<input name="target_url" type="url"></label><label>ক্রম<input name="sort_order" type="number" value="0"></label><button class="primary">ব্যানার সংরক্ষণ</button><p id="bannerMsg"></p></form>'+existing+table(["শিরোনাম","ছবি","অবস্থা","কাজ"],data.map(x=>'<tr><td>'+esc(x.title)+'</td><td>'+(x.image_url?'<a href="'+esc(x.image_url)+'" target="_blank" rel="noopener">দেখুন</a>':"—")+'</td><td>'+(x.is_active?"সক্রিয়":"বন্ধ")+'</td><td><button class="secondary bannerToggle" data-id="'+x.id+'" data-on="'+x.is_active+'">অবস্থা বদল</button></td></tr>'));
+  $("bannerForm").onsubmit=async ev=>{ev.preventDefault();const f=new FormData(ev.currentTarget);const {error}=await db.from("admin_app_banners").insert({title:f.get("title"),image_url:f.get("image_url")||null,target_url:f.get("target_url")||null,sort_order:Number(f.get("sort_order")||0)});msg("bannerMsg",error?error.message:"ব্যানার সংরক্ষিত হয়েছে");if(!error)banners();};
+  e.querySelectorAll(".bannerToggle").forEach(b=>b.onclick=async()=>{const {error}=await db.from("admin_app_banners").update({is_active:b.dataset.on!=="true"}).eq("id",b.dataset.id);if(error)alert(error.message);else banners();});
+ }
+ async function delivery(){
+  const e=$("deliveryPanel");if(!e)return;const data=await rows("admin_app_delivery_zones");
+  e.innerHTML='<form id="zoneForm" class="module-form"><h3>ডেলিভারি এলাকা ও চার্জ</h3><label>এলাকার নাম<input name="zone_name" required></label><label>চার্জ (৳)<input name="charge" type="number" min="0" required></label><button class="primary">এলাকা যোগ</button><p id="zoneMsg"></p></form>'+table(["এলাকা","চার্জ","অবস্থা"],data.map(x=>'<tr><td>'+esc(x.zone_name)+'</td><td>'+money(x.charge)+'</td><td>'+(x.is_active?"সক্রিয়":"বন্ধ")+'</td></tr>'))+'<p class="muted">এগুলো অ্যাডমিন সেটিংস; গ্রাহকের checkout-এ প্রয়োগের সংযোগ আলাদা কাজ। কুরিয়ার API পরে যোগ হবে।</p>';
+  $("zoneForm").onsubmit=async ev=>{ev.preventDefault();const f=new FormData(ev.currentTarget);const {error}=await db.from("admin_app_delivery_zones").insert({zone_name:f.get("zone_name"),charge:Number(f.get("charge"))});msg("zoneMsg",error?error.message:"এলাকা যোগ হয়েছে");if(!error)delivery();};
+ }
+ async function payments(){
+  const e=$("paymentsPanel");if(!e)return;const data=await rows("admin_app_payment_methods");
+  e.innerHTML=table(["পদ্ধতি","অবস্থা","কাজ"],data.map(x=>'<tr><td>'+esc(x.display_name)+'</td><td>'+(x.is_enabled?"চালু":"বন্ধ")+'</td><td><button class="secondary payToggle" data-id="'+x.id+'" data-on="'+x.is_enabled+'">অবস্থা বদল</button></td></tr>'))+'<p class="muted">অনলাইন গেটওয়ে চালু করতে মার্চেন্ট অ্যাকাউন্ট ও API credentials লাগবে; এখানে কেবল পদ্ধতির কনফিগারেশন রাখা হচ্ছে।</p>';
+  e.querySelectorAll(".payToggle").forEach(b=>b.onclick=async()=>{const {error}=await db.from("admin_app_payment_methods").update({is_enabled:b.dataset.on!=="true"}).eq("id",b.dataset.id);if(error)alert(error.message);else payments();});
+ }
+ async function roles(){
+  const e=$("securityPanel");if(!e)return;const [staff,roleRows,perms]=await Promise.all([rows("staff_profiles","user_id,full_name,role,is_active,created_at"),rows("admin_app_staff_roles"),rows("admin_app_permissions")]);
+  e.innerHTML='<form id="roleForm" class="module-form"><h3>স্টাফকে ভূমিকা দিন</h3><label>স্টাফ User ID<input name="user_id" required placeholder="Auth User UUID"></label><label>ভূমিকা<select name="role_key"><option value="manager">ম্যানেজার</option><option value="product_manager">পণ্য ব্যবস্থাপক</option><option value="order_manager">অর্ডার ব্যবস্থাপক</option><option value="inventory_manager">ইনভেন্টরি ব্যবস্থাপক</option><option value="marketing_manager">মার্কেটিং ব্যবস্থাপক</option><option value="support">কাস্টমার সাপোর্ট</option></select></label><button class="primary">ভূমিকা সংরক্ষণ</button><p id="roleMsg"></p></form>'+table(["স্টাফ","মূল ভূমিকা","বিশেষ ভূমিকা"],staff.map(s=>{const r=roleRows.find(x=>x.user_id===s.user_id);return '<tr><td>'+esc(s.full_name||s.user_id)+'</td><td>'+esc(s.role)+'</td><td>'+esc(r?.role_key||"নির্ধারিত নয়")+'</td></tr>';}))+'<h3>অনুমতি ম্যাট্রিক্স (রোলভিত্তিক)</h3>'+table(["ভূমিকা","মডিউল","দেখা","তৈরি","সম্পাদনা","মুছুন"],perms.map(p=>'<tr><td>'+esc(p.role_key)+'</td><td>'+esc(p.module_key)+'</td><td>'+(p.can_view?"হ্যাঁ":"না")+'</td><td>'+(p.can_create?"হ্যাঁ":"না")+'</td><td>'+(p.can_edit?"হ্যাঁ":"না")+'</td><td>'+(p.can_delete?"হ্যাঁ":"না")+'</td></tr>'));
+  $("roleForm").onsubmit=async ev=>{ev.preventDefault();const f=new FormData(ev.currentTarget);const {error}=await db.from("admin_app_staff_roles").upsert({user_id:f.get("user_id").trim(),role_key:f.get("role_key"),updated_at:new Date().toISOString()});msg("roleMsg",error?error.message:"ভূমিকা সংরক্ষিত হয়েছে");if(!error)roles();};
+ }
+ async function audit(){
+  const e=$("notificationsPanel");if(!e)return;const [n,a]=await Promise.all([rows("admin_app_notifications"),rows("admin_app_audit_logs")]);
+  e.innerHTML='<form id="notifyForm" class="module-form"><h3>অ্যাডমিন নোটিফিকেশন তৈরি</h3><label>শিরোনাম<input name="title" required></label><label>বার্তা<textarea name="message" required></textarea></label><button class="primary">নোটিফিকেশন তৈরি</button><p id="notifyMsg"></p></form><h3>নোটিফিকেশন</h3>'+table(["শিরোনাম","বার্তা","তারিখ"],n.map(x=>'<tr><td>'+esc(x.title)+'</td><td>'+esc(x.message)+'</td><td>'+new Date(x.created_at).toLocaleString("bn-BD")+'</td></tr>'))+'<h3>অডিট লগ</h3>'+table(["কাজ","মডিউল","রেকর্ড","তারিখ"],a.map(x=>'<tr><td>'+esc(x.action)+'</td><td>'+esc(x.module_key)+'</td><td>'+esc(x.record_id||"—")+'</td><td>'+new Date(x.created_at).toLocaleString("bn-BD")+'</td></tr>'));
+  $("notifyForm").onsubmit=async ev=>{ev.preventDefault();const f=new FormData(ev.currentTarget);const {error}=await db.from("admin_app_notifications").insert({title:f.get("title"),message:f.get("message")});msg("notifyMsg",error?error.message:"নোটিফিকেশন তৈরি হয়েছে");if(!error)audit();};
+ }
+ const funcs={settings,marketing,delivery,payments,security,notifications:audit};
+ const nav=$("sideNav");if(nav&&!nav.dataset.advanced){nav.dataset.advanced="1";nav.addEventListener("click",ev=>{const b=ev.target.closest("[data-page]");if(!b)return;const fn=funcs[b.dataset.page];if(fn)setTimeout(()=>fn().catch(e=>{const id={settings:"settingsPanel",marketing:"marketingPanel",delivery:"deliveryPanel",payments:"paymentsPanel",security:"securityPanel",notifications:"notificationsPanel"}[b.dataset.page];if($(id))$(id).innerHTML='<p class="error">'+esc(e.message)+'</p>'; }),180);if(b.dataset.page==="marketing")setTimeout(()=>{const h=$("marketingPanel");if(h&&!h.querySelector("#bannerForm"))banners().catch(()=>{});},700);});}
+})();
