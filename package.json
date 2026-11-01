@@ -1,0 +1,16 @@
+{
+  "name": "im-shop-admin",
+  "version": "6.0.0",
+  "private": true,
+  "description": "I M SHOP Admin Android app",
+  "scripts": {
+    "android:sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.4.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.3",
+    "@capacitor/android": "^7.4.3"
+  }
+}
