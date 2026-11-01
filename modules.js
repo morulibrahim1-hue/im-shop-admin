@@ -197,69 +197,52 @@
 })();
 
 
-/* Security workspace v2: assign a role to an existing active staff member and edit role permissions. */
+/* Security workspace: actual staff_profiles table only. */
 (() => {
  const C=window.IMSHOP_CONFIG||{};if(!window.supabase||!C.SUPABASE_URL||!C.SUPABASE_ANON_KEY)return;
  const db=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY),$=id=>document.getElementById(id);
  const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
  async function render(){
   const el=$("securityPanel");if(!el)return;
-  el.innerHTML='<p>নিরাপত্তা ও অনুমতি লোড হচ্ছে…</p>';
-  const [s,r,p]=await Promise.all([
-   db.from("staff_profiles").select("user_id,full_name,role,is_active").order("created_at",{ascending:false}),
-   db.from("admin_app_staff_roles").select("*"),
-   db.from("admin_app_permissions").select("*").order("role_key").order("module_key")
-  ]);
-  const err=s.error||r.error||p.error;
-  if(err){el.innerHTML='<p class="error">ডেটা লোড হয়নি: '+esc(err.message)+'</p>';return;}
-  const staff=(s.data||[]).filter(x=>x.is_active&&x.role!=="admin");
-  el.innerHTML='<h3>স্টাফের ভূমিকা নির্ধারণ</h3><form id="secRoleForm" class="module-form"><label>সক্রিয় স্টাফ<select name="user_id" required><option value="">স্টাফ নির্বাচন করুন</option>'+staff.map(x=>'<option value="'+esc(x.user_id)+'">'+esc(x.full_name||x.user_id)+' · '+esc(x.user_id)+'</option>').join("")+'</select></label><label>কাজের ভূমিকা<select name="role_key"><option value="manager">ম্যানেজার</option><option value="product_manager">পণ্য ব্যবস্থাপক</option><option value="order_manager">অর্ডার ব্যবস্থাপক</option><option value="inventory_manager">ইনভেন্টরি ব্যবস্থাপক</option><option value="marketing_manager">মার্কেটিং ব্যবস্থাপক</option><option value="support">কাস্টমার সাপোর্ট</option></select></label><button class="primary">ভূমিকা সংরক্ষণ</button><p id="secRoleMsg" aria-live="polite"></p></form><h3>বর্তমান স্টাফ ভূমিকা</h3><div class="table-wrap"><table><thead><tr><th>স্টাফ</th><th>মূল ভূমিকা</th><th>বিশেষ ভূমিকা</th></tr></thead><tbody>'+staff.map(x=>{const z=(r.data||[]).find(y=>y.user_id===x.user_id);return '<tr><td>'+esc(x.full_name||x.user_id)+'</td><td>'+esc(x.role)+'</td><td>'+esc(z?.role_key||"নির্ধারিত নয়")+'</td></tr>';}).join("")+'</tbody></table></div><h3>রোলভিত্তিক অনুমতি</h3><p class="muted">প্রতিটি রোল ও মডিউলের দেখা, তৈরি, সম্পাদনা ও মুছার অনুমতি আলাদাভাবে সংরক্ষণ করুন।</p><div class="table-wrap"><table><thead><tr><th>রোল</th><th>মডিউল</th><th>দেখা</th><th>তৈরি</th><th>সম্পাদনা</th><th>মুছুন</th><th>সংরক্ষণ</th></tr></thead><tbody>'+ (p.data||[]).map((x,i)=>'<tr data-perm="'+i+'"><td>'+esc(x.role_key)+'</td><td>'+esc(x.module_key)+'</td>'+["can_view","can_create","can_edit","can_delete"].map(k=>'<td><input type="checkbox" data-field="'+k+'" '+(x[k]?'checked':'')+' aria-label="'+k+'"></td>').join("")+'<td><button class="secondary secPermSave" type="button">সংরক্ষণ</button></td></tr>').join("")+'</tbody></table></div><p id="secPermMsg" aria-live="polite"></p><h3>নিরাপত্তা অবস্থা</h3><p>অ্যাডমিন লগইন Supabase Auth দিয়ে যাচাই হয়। OTP/MFA সক্রিয় আছে—এমন দাবি করা হচ্ছে না; Supabase Auth-এ আলাদাভাবে যাচাই ও কনফিগার করতে হবে।';
-  $("secRoleForm").onsubmit=async ev=>{ev.preventDefault();const fd=new FormData(ev.currentTarget),uid=fd.get("user_id"),role=fd.get("role_key");if(!uid)return;const {error}=await db.from("admin_app_staff_roles").upsert({user_id:uid,role_key:role,updated_at:new Date().toISOString()},{onConflict:"user_id"});$("secRoleMsg").textContent=error?"সংরক্ষণ হয়নি: "+error.message:"স্টাফের ভূমিকা সংরক্ষিত হয়েছে।";if(!error)setTimeout(render,500);};
-  el.querySelectorAll(".secPermSave").forEach(btn=>btn.onclick=async()=>{const tr=btn.closest("tr"),idx=Number(tr.dataset.perm),row=p.data[idx],patch={};tr.querySelectorAll("[data-field]").forEach(ch=>patch[ch.dataset.field]=ch.checked);btn.disabled=true;const {error}=await db.from("admin_app_permissions").update(patch).eq("role_key",row.role_key).eq("module_key",row.module_key);btn.disabled=false;$("secPermMsg").textContent=error?"অনুমতি সংরক্ষণ হয়নি: "+error.message:"অনুমতি আপডেট হয়েছে।";});
+  const {data,error}=await db.from("staff_profiles").select("user_id,full_name,role,is_active,created_at").order("created_at",{ascending:false});
+  if(error){el.innerHTML='<p class="error">'+esc(error.message)+'</p>';return;}
+  el.innerHTML='<h3>অ্যাডমিন ও স্টাফ</h3><div class="table-wrap"><table><thead><tr><th>নাম</th><th>ভূমিকা</th><th>অবস্থা</th><th>ইউজার আইডি</th></tr></thead><tbody>'+ (data||[]).map(x=>'<tr><td>'+esc(x.full_name)+'</td><td>'+esc(x.role)+'</td><td>'+(x.is_active?'সক্রিয়':'নিষ্ক্রিয়')+'</td><td><small>'+esc(x.user_id)+'</small></td></tr>').join("")+'</tbody></table></div><p class="muted">স্টাফের ভূমিকা staff_profiles-এ সংরক্ষিত। অতিরিক্ত role-permission matrix টেবিল আপনার বর্তমান ডেটাবেসে নেই।</p>';
  }
- document.getElementById("sideNav")?.addEventListener("click",e=>{const b=e.target.closest('[data-page="security"]');if(b)setTimeout(()=>render().catch(err=>{const el=$("securityPanel");if(el)el.textContent=err.message;}),1100);});
+ document.getElementById("sideNav")?.addEventListener("click",e=>{if(e.target.closest('[data-page="security"]'))setTimeout(()=>render().catch(err=>{$("securityPanel").textContent=err.message;}),400);});
 })();
 
-
-/* Delivery-zone editor v2: edit charge, activate/deactivate, and safely remove zones. */
+/* Delivery and courier settings: courier_services + store_settings. */
 (() => {
  const C=window.IMSHOP_CONFIG||{};if(!window.supabase||!C.SUPABASE_URL||!C.SUPABASE_ANON_KEY)return;
  const db=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY),$=id=>document.getElementById(id);
  const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
- const money=v=>"৳"+Number(v||0).toLocaleString("en-BD");
  async function render(){
   const el=$("deliveryPanel");if(!el)return;
-  const {data,error}=await db.from("admin_app_delivery_zones").select("*").order("zone_name");
-  if(error){el.innerHTML='<p class="error">ডেলিভারি এলাকা লোড হয়নি: '+esc(error.message)+'</p>';return;}
-  el.innerHTML='<form id="zoneV2Form" class="module-form"><h3>নতুন ডেলিভারি এলাকা</h3><label>এলাকার নাম<input name="zone_name" required maxlength="100"></label><label>ডেলিভারি চার্জ (৳)<input name="charge" type="number" min="0" step="1" required></label><button class="primary">এলাকা সংরক্ষণ</button><p id="zoneV2Msg" aria-live="polite"></p></form><h3>ডেলিভারি চার্জ তালিকা</h3><div class="table-wrap"><table><thead><tr><th>এলাকা</th><th>চার্জ</th><th>অবস্থা</th><th>কাজ</th></tr></thead><tbody>'+ (data||[]).map(x=>'<tr data-zone="'+esc(x.id)+'"><td><input class="zoneName" value="'+esc(x.zone_name)+'" aria-label="এলাকার নাম"></td><td><input class="zoneCharge" type="number" min="0" step="1" value="'+Number(x.charge||0)+'" aria-label="চার্জ"></td><td>'+(x.is_active?"সক্রিয়":"বন্ধ")+'</td><td><button class="secondary zoneSave" type="button">আপডেট</button> <button class="secondary zoneToggle" type="button" data-active="'+!!x.is_active+'">'+(x.is_active?"বন্ধ করুন":"চালু করুন")+'</button> <button class="secondary zoneDelete" type="button">মুছুন</button></td></tr>').join("")+'</tbody></table></div><p class="muted">এখানে চার্জ সংরক্ষণ হয়। গ্রাহকের অর্ডারে স্বয়ংক্রিয়ভাবে চার্জ বসানো এবং Steadfast/Pathao API সংযোগ এখনো আলাদা কাজ; API credentials ছাড়া কুরিয়ার বুকিং হবে না।</p>';
-  $("zoneV2Form").onsubmit=async ev=>{ev.preventDefault();const fd=new FormData(ev.currentTarget);const {error}=await db.from("admin_app_delivery_zones").insert({zone_name:String(fd.get("zone_name")).trim(),charge:Number(fd.get("charge")),is_active:true});$("zoneV2Msg").textContent=error?"সংরক্ষণ হয়নি: "+error.message:"এলাকা সংরক্ষিত হয়েছে।";if(!error)render();};
-  el.querySelectorAll("tr[data-zone]").forEach(tr=>{
-   const id=tr.dataset.zone;
-   tr.querySelector(".zoneSave").onclick=async()=>{const charge=Number(tr.querySelector(".zoneCharge").value),name=tr.querySelector(".zoneName").value.trim();if(!name||!Number.isFinite(charge)||charge<0){alert("সঠিক নাম ও চার্জ দিন।");return;}const {error}=await db.from("admin_app_delivery_zones").update({zone_name:name,charge}).eq("id",id);if(error)alert("আপডেট হয়নি: "+error.message);else render();};
-   tr.querySelector(".zoneToggle").onclick=async()=>{const active=tr.querySelector(".zoneToggle").dataset.active==="true";const {error}=await db.from("admin_app_delivery_zones").update({is_active:!active}).eq("id",id);if(error)alert("অবস্থা বদলায়নি: "+error.message);else render();};
-   tr.querySelector(".zoneDelete").onclick=async()=>{if(!confirm("এই ডেলিভারি এলাকা মুছবেন?"))return;const {error}=await db.from("admin_app_delivery_zones").delete().eq("id",id);if(error)alert("মুছা যায়নি: "+error.message);else render();};
-  });
+  const [s,c]=await Promise.all([db.from("store_settings").select("setting_key,setting_value").in("setting_key",["dhaka_delivery_charge","outside_dhaka_delivery_charge"]),db.from("courier_services").select("id,name,is_active,settings").order("name")]);
+  if(s.error||c.error){el.innerHTML='<p class="error">'+esc((s.error||c.error).message)+'</p>';return;}
+  const v=Object.fromEntries((s.data||[]).map(x=>[x.setting_key,x.setting_value?.value??x.setting_value??""]));
+  el.innerHTML='<form id="deliveryV3" class="module-form"><h3>ডেলিভারি চার্জ</h3><label>ঢাকার ভিতরে (৳)<input name="dhaka" type="number" min="0" value="'+esc(v.dhaka_delivery_charge??70)+'"></label><label>ঢাকার বাইরে (৳)<input name="outside" type="number" min="0" value="'+esc(v.outside_dhaka_delivery_charge??120)+'"></label><button class="primary">চার্জ সংরক্ষণ</button><p id="deliveryV3Msg"></p></form><h3>কুরিয়ার সার্ভিস</h3><form id="courierV3" class="module-form"><label>সার্ভিসের নাম<input name="name" required></label><button class="secondary">যোগ করুন</button></form><div class="table-wrap"><table><thead><tr><th>নাম</th><th>অবস্থা</th><th>কাজ</th></tr></thead><tbody>'+ (c.data||[]).map(x=>'<tr data-id="'+x.id+'"><td>'+esc(x.name)+'</td><td>'+(x.is_active?'সক্রিয়':'বন্ধ')+'</td><td><button class="secondary toggle">'+(x.is_active?'বন্ধ':'চালু')+'</button></td></tr>').join("")+'</tbody></table></div><p class="muted">চার্জ সেটিংসে সংরক্ষিত হয়। Checkout-এ স্বয়ংক্রিয় প্রয়োগ ও কুরিয়ার API সংযোগ আলাদা backend কাজ।</p>';
+  $("deliveryV3").onsubmit=async e=>{e.preventDefault();const fd=new FormData(e.currentTarget),rows=[{setting_key:"dhaka_delivery_charge",setting_value:{value:Number(fd.get("dhaka"))}},{setting_key:"outside_dhaka_delivery_charge",setting_value:{value:Number(fd.get("outside"))}}];const {error}=await db.from("store_settings").upsert(rows,{onConflict:"setting_key"});$("deliveryV3Msg").textContent=error?error.message:"চার্জ সংরক্ষিত হয়েছে";};
+  $("courierV3").onsubmit=async e=>{e.preventDefault();const name=String(new FormData(e.currentTarget).get("name")).trim();const {error}=await db.from("courier_services").insert({name,is_active:true,settings:{}});if(error)alert(error.message);else render();};
+  el.querySelectorAll("tr[data-id] .toggle").forEach(btn=>btn.onclick=async()=>{const row=c.data.find(x=>x.id===btn.closest("tr").dataset.id);const {error}=await db.from("courier_services").update({is_active:!row.is_active}).eq("id",row.id);if(error)alert(error.message);else render();});
  }
- document.getElementById("sideNav")?.addEventListener("click",e=>{if(e.target.closest('[data-page="delivery"]'))setTimeout(()=>render().catch(err=>{const el=$("deliveryPanel");if(el)el.textContent=err.message;}),1200);});
+ document.getElementById("sideNav")?.addEventListener("click",e=>{if(e.target.closest('[data-page="delivery"]'))setTimeout(()=>render().catch(err=>{$("deliveryPanel").textContent=err.message;}),400);});
 })();
 
-
-/* Payment settings v2: explicit gateway readiness and safe enable/disable controls. */
+/* Payment transaction history: real payment_transactions table. */
 (() => {
  const C=window.IMSHOP_CONFIG||{};if(!window.supabase||!C.SUPABASE_URL||!C.SUPABASE_ANON_KEY)return;
  const db=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY),$=id=>document.getElementById(id);
  const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
  async function render(){
   const el=$("paymentsPanel");if(!el)return;
-  const {data,error}=await db.from("admin_app_payment_methods").select("*").order("display_name");
-  if(error){el.innerHTML='<p class="error">পেমেন্ট সেটিংস লোড হয়নি: '+esc(error.message)+'</p>';return;}
-  const methods=data||[];
-  el.innerHTML='<div class="module-kpis"><article><b>'+methods.length+'</b><span>কনফিগার করা পেমেন্ট পদ্ধতি</span></article><article><b>'+methods.filter(x=>x.is_enabled).length+'</b><span>অ্যাডমিন প্যানেলে চালু</span></article></div><h3>পেমেন্ট পদ্ধতি</h3><div class="table-wrap"><table><thead><tr><th>পদ্ধতি</th><th>অবস্থা</th><th>কাজ</th></tr></thead><tbody>'+methods.map(x=>'<tr><td>'+esc(x.display_name||"নাম দেওয়া হয়নি")+'</td><td>'+(x.is_enabled?"চালু":"বন্ধ")+'</td><td><button class="secondary payV2Toggle" type="button" data-id="'+esc(x.id)+'" data-enabled="'+!!x.is_enabled+'">'+(x.is_enabled?"বন্ধ করুন":"চালু করুন")+'</button></td></tr>').join("")+'</tbody></table></div><h3>গেটওয়ে প্রস্তুতি</h3><ul><li>Cash on Delivery (COD): পদ্ধতির রেকর্ড থাকলে চালু/বন্ধ করা যাবে।</li><li>bKash / Nagad: মার্চেন্ট অ্যাকাউন্ট, API key/secret ও সার্ভার-সাইড callback যাচাই ছাড়া অনলাইন পেমেন্ট গ্রহণ করা যাবে না।</li><li>এখানে চালু দেখানো মানে শুধু অ্যাডমিন সেটিংস চালু; গ্রাহকের checkout বা বাস্তব লেনদেন সংযুক্ত হয়েছে—এমন নয়।</li></ul>';
-  el.querySelectorAll(".payV2Toggle").forEach(btn=>btn.onclick=async()=>{btn.disabled=true;const enabled=btn.dataset.enabled==="true";const {error}=await db.from("admin_app_payment_methods").update({is_enabled:!enabled}).eq("id",btn.dataset.id);if(error){alert("পেমেন্ট সেটিংস বদলায়নি: "+error.message);btn.disabled=false;}else render();});
+  const {data,error}=await db.from("payment_transactions").select("id,order_id,provider,provider_reference,amount,status,created_at").order("created_at",{ascending:false}).limit(300);
+  if(error){el.innerHTML='<p class="error">'+esc(error.message)+'</p>';return;}
+  const rows=data||[],success=rows.filter(x=>String(x.status).toLowerCase()==="success").reduce((n,x)=>n+Number(x.amount||0),0);
+  el.innerHTML='<div class="module-kpis"><article><b>'+rows.length+'</b><span>মোট লেনদেন</span></article><article><b>৳'+success.toLocaleString("en-BD")+'</b><span>সফল লেনদেন</span></article></div><div class="table-wrap"><table><thead><tr><th>প্রোভাইডার</th><th>পরিমাণ</th><th>স্ট্যাটাস</th><th>রেফারেন্স</th><th>তারিখ</th></tr></thead><tbody>'+rows.map(x=>'<tr><td>'+esc(x.provider)+'</td><td>৳'+Number(x.amount||0).toLocaleString("en-BD")+'</td><td>'+esc(x.status)+'</td><td>'+esc(x.provider_reference||"—")+'</td><td>'+new Date(x.created_at).toLocaleString("bn-BD")+'</td></tr>').join("")+'</tbody></table></div><p class="muted">এখানে প্রকৃত payment_transactions ইতিহাস দেখা যাবে। bKash/Nagad/অনলাইন গেটওয়ে চালু করতে merchant credentials এবং নিরাপদ server-side callback প্রয়োজন।</p>';
  }
- document.getElementById("sideNav")?.addEventListener("click",e=>{if(e.target.closest('[data-page="payments"]'))setTimeout(()=>render().catch(err=>{const el=$("paymentsPanel");if(el)el.textContent=err.message;}),1200);});
+ document.getElementById("sideNav")?.addEventListener("click",e=>{if(e.target.closest('[data-page="payments"]'))setTimeout(()=>render().catch(err=>{$("paymentsPanel").textContent=err.message;}),400);});
 })();
-
 
 /* Marketing workspace v2: manage coupons and banners with safe validation, toggle and delete. */
 (() => {
