@@ -30,11 +30,9 @@
       .select("role,is_active").eq("user_id", user.id).maybeSingle();
     if (error) throw error;
     if (!data || data.is_active !== true) return false;
-    if (data.role === "admin") return true;
-    const { data: assigned, error: roleError } = await db.from("admin_app_staff_roles")
-      .select("role_key").eq("user_id", user.id).maybeSingle();
-    if (roleError) throw roleError;
-    return !!assigned;
+    // Only an active admin profile grants admin-console access.
+    // Staff roles are not elevated to admin merely by having an assignment row.
+    return data.role === "admin";
   }
   async function refreshAll() {
     await Promise.allSettled([loadDashboard(), loadProducts(), loadCategories(), loadOrders(), loadStaff()]);
