@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111827">
+<meta name="description" content="I M SHOP — অনলাইন শপিং">
+<title>I M SHOP — Online Shop</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+<a class="brand" href="./"><span>IM</span><b>I M SHOP</b></a>
+<a class="cart-link" href="#cart">কার্ট <strong id="cartCount">0</strong></a>
+</header>
+<section class="hero">
+<p>WELCOME TO I M SHOP</p>
+<h1>আপনার পছন্দের কেনাকাটা<br>এখন আরও সহজ</h1>
+<span>নতুন কালেকশন দেখুন</span>
+</section>
+<main>
+<div class="heading">
+<div><small>OUR COLLECTION</small><h2>সব পণ্য</h2></div>
+<input id="search" type="search" placeholder="পণ্য খুঁজুন…">
+</div>
+<div id="categories" class="categories">
+<button class="selected" data-category="all">সব</button>
+</div>
+<div id="products" class="products">
+<p class="notice">পণ্য লোড হচ্ছে…</p>
+</div>
+<section id="cart" class="cart">
+<div class="heading">
+<div><small>YOUR ORDER</small><h2>আপনার কার্ট</h2></div>
+</div>
+<div id="cartItems">
+<p class="notice">কার্টে এখনো কোনো পণ্য নেই।</p>
+</div>
+<div class="cart-total">মোট: <b id="cartTotal">৳০</b></div>
+<p class="notice">অর্ডার জমা দেওয়ার ফর্ম পরবর্তী ধাপে যুক্ত হবে।</p>
+</section>
+</main>
+<footer>© I M SHOP · আপনার বিশ্বস্ত অনলাইন শপ</footer>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
