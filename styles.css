@@ -46,3 +46,5 @@ td code{font-size:10px;word-break:break-all;color:#64748b}
 @media(min-width:851px){#sideNav{scrollbar-width:thin;scrollbar-color:#46546b transparent}.main{min-height:100vh}}
 @media(max-width:850px){.nav-item .nav-icon{width:21px;height:21px}.sidebar{overflow:visible}}
 @media(max-width:520px){#sideNav{max-height:none;overflow-x:auto;overflow-y:hidden}.nav-item{min-height:54px}.nav-icon{width:20px;height:20px}.logout .nav-icon{width:18px;height:18px}}
+
+.app-version{display:inline-block;margin-left:6px;padding:2px 7px;border-radius:20px;background:#e8edf7;color:#243b67;font-size:10px;font-weight:700}
