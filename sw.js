@@ -1,5 +1,5 @@
-const CACHE = "im-shop-admin-v2";
-const CORE = ["./", "./index.html", "./styles.css", "./app.js", "./config.js", "./manifest.webmanifest", "./assets/icon.svg"];
+const CACHE = "im-shop-admin-v3";
+const CORE = ["./", "./index.html", "./styles.css", "./app.js", "./modules.js", "./config.js", "./manifest.webmanifest", "./assets/icon.svg"];
 
 self.addEventListener("install", event => {
   event.waitUntil((async () => {
