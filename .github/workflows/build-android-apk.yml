@@ -34,6 +34,10 @@ jobs:
           java-version: '21'
       - name: Install dependencies
         run: npm install
+      - name: Prepare web assets
+        run: |
+          mkdir -p www
+          cp index.html config.js app.js modules.js styles.css manifest.webmanifest sw.js icon.svg www/
       - name: Add Android platform
         run: npx cap add android
       - name: Sync web app
