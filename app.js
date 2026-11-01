@@ -29,7 +29,12 @@
     const { data, error } = await db.from("staff_profiles")
       .select("role,is_active").eq("user_id", user.id).maybeSingle();
     if (error) throw error;
-    return !!data && data.is_active === true && data.role === "admin";
+    if (!data || data.is_active !== true) return false;
+    if (data.role === "admin") return true;
+    const { data: assigned, error: roleError } = await db.from("admin_app_staff_roles")
+      .select("role_key").eq("user_id", user.id).maybeSingle();
+    if (roleError) throw roleError;
+    return !!assigned;
   }
   async function refreshAll() {
     await Promise.allSettled([loadDashboard(), loadProducts(), loadCategories(), loadOrders(), loadStaff()]);
