@@ -411,3 +411,26 @@
  }
  document.getElementById("sideNav")?.addEventListener("click",e=>{const b=e.target.closest('[data-page="security"]');if(b)setTimeout(()=>render().catch(err=>{const el=$("securityPanel");if(el)el.textContent=err.message;}),1100);});
 })();
+
+
+/* Delivery-zone editor v2: edit charge, activate/deactivate, and safely remove zones. */
+(() => {
+ const C=window.IMSHOP_CONFIG||{};if(!window.supabase||!C.SUPABASE_URL||!C.SUPABASE_ANON_KEY)return;
+ const db=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY),$=id=>document.getElementById(id);
+ const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+ const money=v=>"৳"+Number(v||0).toLocaleString("en-BD");
+ async function render(){
+  const el=$("deliveryPanel");if(!el)return;
+  const {data,error}=await db.from("admin_app_delivery_zones").select("*").order("zone_name");
+  if(error){el.innerHTML='<p class="error">ডেলিভারি এলাকা লোড হয়নি: '+esc(error.message)+'</p>';return;}
+  el.innerHTML='<form id="zoneV2Form" class="module-form"><h3>নতুন ডেলিভারি এলাকা</h3><label>এলাকার নাম<input name="zone_name" required maxlength="100"></label><label>ডেলিভারি চার্জ (৳)<input name="charge" type="number" min="0" step="1" required></label><button class="primary">এলাকা সংরক্ষণ</button><p id="zoneV2Msg" aria-live="polite"></p></form><h3>ডেলিভারি চার্জ তালিকা</h3><div class="table-wrap"><table><thead><tr><th>এলাকা</th><th>চার্জ</th><th>অবস্থা</th><th>কাজ</th></tr></thead><tbody>'+ (data||[]).map(x=>'<tr data-zone="'+esc(x.id)+'"><td><input class="zoneName" value="'+esc(x.zone_name)+'" aria-label="এলাকার নাম"></td><td><input class="zoneCharge" type="number" min="0" step="1" value="'+Number(x.charge||0)+'" aria-label="চার্জ"></td><td>'+(x.is_active?"সক্রিয়":"বন্ধ")+'</td><td><button class="secondary zoneSave" type="button">আপডেট</button> <button class="secondary zoneToggle" type="button" data-active="'+!!x.is_active+'">'+(x.is_active?"বন্ধ করুন":"চালু করুন")+'</button> <button class="secondary zoneDelete" type="button">মুছুন</button></td></tr>').join("")+'</tbody></table></div><p class="muted">এখানে চার্জ সংরক্ষণ হয়। গ্রাহকের অর্ডারে স্বয়ংক্রিয়ভাবে চার্জ বসানো এবং Steadfast/Pathao API সংযোগ এখনো আলাদা কাজ; API credentials ছাড়া কুরিয়ার বুকিং হবে না।</p>';
+  $("zoneV2Form").onsubmit=async ev=>{ev.preventDefault();const fd=new FormData(ev.currentTarget);const {error}=await db.from("admin_app_delivery_zones").insert({zone_name:String(fd.get("zone_name")).trim(),charge:Number(fd.get("charge")),is_active:true});$("zoneV2Msg").textContent=error?"সংরক্ষণ হয়নি: "+error.message:"এলাকা সংরক্ষিত হয়েছে।";if(!error)render();};
+  el.querySelectorAll("tr[data-zone]").forEach(tr=>{
+   const id=tr.dataset.zone;
+   tr.querySelector(".zoneSave").onclick=async()=>{const charge=Number(tr.querySelector(".zoneCharge").value),name=tr.querySelector(".zoneName").value.trim();if(!name||!Number.isFinite(charge)||charge<0){alert("সঠিক নাম ও চার্জ দিন।");return;}const {error}=await db.from("admin_app_delivery_zones").update({zone_name:name,charge}).eq("id",id);if(error)alert("আপডেট হয়নি: "+error.message);else render();};
+   tr.querySelector(".zoneToggle").onclick=async()=>{const active=tr.querySelector(".zoneToggle").dataset.active==="true";const {error}=await db.from("admin_app_delivery_zones").update({is_active:!active}).eq("id",id);if(error)alert("অবস্থা বদলায়নি: "+error.message);else render();};
+   tr.querySelector(".zoneDelete").onclick=async()=>{if(!confirm("এই ডেলিভারি এলাকা মুছবেন?"))return;const {error}=await db.from("admin_app_delivery_zones").delete().eq("id",id);if(error)alert("মুছা যায়নি: "+error.message);else render();};
+  });
+ }
+ document.getElementById("sideNav")?.addEventListener("click",e=>{if(e.target.closest('[data-page="delivery"]'))setTimeout(()=>render().catch(err=>{const el=$("deliveryPanel");if(el)el.textContent=err.message;}),1200);});
+})();
