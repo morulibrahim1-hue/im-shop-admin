@@ -214,3 +214,36 @@
   if(ev.target.closest('[data-page="categories"]'))setTimeout(()=>renderCategories().catch(e=>{const el=$("categoriesPanel");if(el)el.textContent=e.message;}),500);
  });
 })();
+
+
+/* Inventory module v2: stock adjustment, low-stock watch, and movement history. */
+(() => {
+ const C=window.IMSHOP_CONFIG||{};
+ if(!window.supabase||!C.SUPABASE_URL||!C.SUPABASE_ANON_KEY)return;
+ const db=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY);
+ const $=id=>document.getElementById(id);
+ const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+ async function renderInventory(){
+  const el=$("inventoryPanel");if(!el)return;
+  el.innerHTML='<p class="muted pad">স্টক তথ্য লোড হচ্ছে…</p>';
+  const [p,m]=await Promise.all([
+   db.from("products").select("id,name,sku,stock_quantity,is_active").order("name").limit(500),
+   db.from("admin_app_stock_movements").select("id,product_id,quantity_before,quantity_after,change_amount,reason,note,created_at").order("created_at",{ascending:false}).limit(100)
+  ]);
+  if(p.error){el.innerHTML='<p class="error pad">পণ্যের স্টক লোড হয়নি: '+esc(p.error.message)+'</p>';return;}
+  const products=p.data||[], movements=m.error?[]:(m.data||[]), names=Object.fromEntries(products.map(x=>[x.id,x.name]));
+  const low=products.filter(x=>Number(x.stock_quantity||0)<=5);
+  el.innerHTML='<div class="module-kpis"><article><b>'+products.length+'</b><span>মোট পণ্য</span></article><article><b>'+low.length+'</b><span>কম স্টক (৫ বা কম)</span></article><article><b>'+products.filter(x=>Number(x.stock_quantity||0)===0).length+'</b><span>স্টক শেষ</span></article></div><h3>স্টক আপডেট</h3><div class="table-wrap"><table><thead><tr><th>পণ্য</th><th>SKU</th><th>বর্তমান স্টক</th><th>নতুন স্টক</th><th>কাজ</th></tr></thead><tbody>'+products.map(x=>'<tr data-id="'+x.id+'"><td>'+esc(x.name)+'</td><td>'+esc(x.sku||"—")+'</td><td>'+Number(x.stock_quantity||0)+'</td><td><input class="inv-v2-qty" type="number" min="0" step="1" value="'+Number(x.stock_quantity||0)+'" aria-label="নতুন স্টক"></td><td><button class="secondary inv-v2-save">স্টক সংরক্ষণ</button></td></tr>').join("")+'</tbody></table></div><h3>কম স্টকের পণ্য</h3>'+ (low.length?'<ul>'+low.map(x=>'<li>'+esc(x.name)+' — '+Number(x.stock_quantity||0)+' টি</li>').join("")+'</ul>':'<p class="muted">এখন কোনো পণ্যের স্টক কম নেই।')+'</p><h3>সর্বশেষ স্টক পরিবর্তনের ইতিহাস</h3>'+(m.error?'<p class="error">ইতিহাসের টেবিল পাওয়া যায়নি: '+esc(m.error.message)+'</p>':(movements.length?'<div class="table-wrap"><table><thead><tr><th>পণ্য</th><th>আগের স্টক</th><th>পরের স্টক</th><th>পরিবর্তন</th><th>কারণ</th><th>সময়</th></tr></thead><tbody>'+movements.map(x=>'<tr><td>'+esc(names[x.product_id]||"পণ্য আর তালিকায় নেই")+'</td><td>'+x.quantity_before+'</td><td>'+x.quantity_after+'</td><td>'+(x.change_amount>0?"+":"")+x.change_amount+'</td><td>'+esc(x.reason||"manual_adjustment")+(x.note?" — "+esc(x.note):"")+'</td><td>'+new Date(x.created_at).toLocaleString("bn-BD")+'</td></tr>').join("")+'</tbody></table></div>':'<p class="muted">এখনো স্টক পরিবর্তনের ইতিহাস নেই।</p>'));
+  el.querySelectorAll(".inv-v2-save").forEach(b=>b.onclick=async()=>{
+   const tr=b.closest("tr"),qty=Number(tr.querySelector(".inv-v2-qty").value);
+   if(!Number.isInteger(qty)||qty<0){alert("স্টক শূন্য বা তার বেশি পূর্ণসংখ্যা হতে হবে।");return;}
+   b.disabled=true;
+   const {error}=await db.from("products").update({stock_quantity:qty}).eq("id",tr.dataset.id);
+   if(error)alert("স্টক সংরক্ষণ হয়নি: "+error.message);else renderInventory();
+   b.disabled=false;
+  });
+ }
+ document.getElementById("sideNav")?.addEventListener("click",ev=>{
+  if(ev.target.closest('[data-page="inventory"]'))setTimeout(()=>renderInventory().catch(e=>{const el=$("inventoryPanel");if(el)el.textContent=e.message;}),500);
+ });
+})();
