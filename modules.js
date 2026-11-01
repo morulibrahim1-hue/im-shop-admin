@@ -434,3 +434,20 @@
  }
  document.getElementById("sideNav")?.addEventListener("click",e=>{if(e.target.closest('[data-page="delivery"]'))setTimeout(()=>render().catch(err=>{const el=$("deliveryPanel");if(el)el.textContent=err.message;}),1200);});
 })();
+
+
+/* Payment settings v2: explicit gateway readiness and safe enable/disable controls. */
+(() => {
+ const C=window.IMSHOP_CONFIG||{};if(!window.supabase||!C.SUPABASE_URL||!C.SUPABASE_ANON_KEY)return;
+ const db=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY),$=id=>document.getElementById(id);
+ const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+ async function render(){
+  const el=$("paymentsPanel");if(!el)return;
+  const {data,error}=await db.from("admin_app_payment_methods").select("*").order("display_name");
+  if(error){el.innerHTML='<p class="error">পেমেন্ট সেটিংস লোড হয়নি: '+esc(error.message)+'</p>';return;}
+  const methods=data||[];
+  el.innerHTML='<div class="module-kpis"><article><b>'+methods.length+'</b><span>কনফিগার করা পেমেন্ট পদ্ধতি</span></article><article><b>'+methods.filter(x=>x.is_enabled).length+'</b><span>অ্যাডমিন প্যানেলে চালু</span></article></div><h3>পেমেন্ট পদ্ধতি</h3><div class="table-wrap"><table><thead><tr><th>পদ্ধতি</th><th>অবস্থা</th><th>কাজ</th></tr></thead><tbody>'+methods.map(x=>'<tr><td>'+esc(x.display_name||"নাম দেওয়া হয়নি")+'</td><td>'+(x.is_enabled?"চালু":"বন্ধ")+'</td><td><button class="secondary payV2Toggle" type="button" data-id="'+esc(x.id)+'" data-enabled="'+!!x.is_enabled+'">'+(x.is_enabled?"বন্ধ করুন":"চালু করুন")+'</button></td></tr>').join("")+'</tbody></table></div><h3>গেটওয়ে প্রস্তুতি</h3><ul><li>Cash on Delivery (COD): পদ্ধতির রেকর্ড থাকলে চালু/বন্ধ করা যাবে।</li><li>bKash / Nagad: মার্চেন্ট অ্যাকাউন্ট, API key/secret ও সার্ভার-সাইড callback যাচাই ছাড়া অনলাইন পেমেন্ট গ্রহণ করা যাবে না।</li><li>এখানে চালু দেখানো মানে শুধু অ্যাডমিন সেটিংস চালু; গ্রাহকের checkout বা বাস্তব লেনদেন সংযুক্ত হয়েছে—এমন নয়।</li></ul>';
+  el.querySelectorAll(".payV2Toggle").forEach(btn=>btn.onclick=async()=>{btn.disabled=true;const enabled=btn.dataset.enabled==="true";const {error}=await db.from("admin_app_payment_methods").update({is_enabled:!enabled}).eq("id",btn.dataset.id);if(error){alert("পেমেন্ট সেটিংস বদলায়নি: "+error.message);btn.disabled=false;}else render();});
+ }
+ document.getElementById("sideNav")?.addEventListener("click",e=>{if(e.target.closest('[data-page="payments"]'))setTimeout(()=>render().catch(err=>{const el=$("paymentsPanel");if(el)el.textContent=err.message;}),1200);});
+})();
