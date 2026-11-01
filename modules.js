@@ -197,35 +197,6 @@
 })();
 
 
-/* Order desk: client-side search/filter and export without changing order records. */
-(() => {
- const C=window.IMSHOP_CONFIG||{};
- if(!window.supabase||!C.SUPABASE_URL||!C.SUPABASE_ANON_KEY)return;
- const db=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY);
- const $=id=>document.getElementById(id);
- const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
- const money=v=>"৳"+Number(v||0).toLocaleString("en-BD");
- let rows=[];
- async function load(){
-  const el=$("ordersList");if(!el)return;
-  const {data,error}=await db.from("orders").select("id,order_number,customer_name,total,status,created_at").order("created_at",{ascending:false}).limit(1000);
-  if(error){el.innerHTML='<p class="error">'+esc(error.message)+'</p>';return;}
-  rows=data||[];
-  el.innerHTML='<div class="toolbar"><label>অর্ডার খুঁজুন<input id="orderDeskSearch" placeholder="অর্ডার নম্বর, ক্রেতা বা মোবাইল"></label><label>স্ট্যাটাস<select id="orderDeskStatus"><option value="">সব স্ট্যাটাস</option><option value="pending">Pending</option><option value="confirmed">Confirmed</option><option value="processing">Processing</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option></select></label><button id="orderDeskExport" class="secondary" type="button">CSV ডাউনলোড</button></div><div id="orderDeskSummary" class="module-kpis"></div><div id="orderDeskRows" class="table-wrap"></div>';
-  function draw(){
-   const q=$("orderDeskSearch").value.toLowerCase(),st=$("orderDeskStatus").value;
-   const filtered=rows.filter(x=>(!st||x.status===st)&&[x.order_number,x.customer_name].some(v=>String(v||"").toLowerCase().includes(q)));
-   $("orderDeskSummary").innerHTML='<article><b>'+filtered.length+'</b><span>মিল পাওয়া অর্ডার</span></article><article><b>'+money(filtered.filter(x=>x.status!=="cancelled").reduce((s,x)=>s+Number(x.total||0),0))+'</b><span>বাতিল বাদে অর্ডার মূল্য</span></article>';
-   $("orderDeskRows").innerHTML='<table><thead><tr><th>অর্ডার</th><th>ক্রেতা</th><th>মোট</th><th>স্ট্যাটাস / পরিবর্তন</th><th>তারিখ</th></tr></thead><tbody>'+filtered.map(x=>'<tr><td>'+esc(x.order_number||x.id)+'</td><td>'+esc(x.customer_name||"—")+'</td><td>'+esc(x.customer_phone||"—")+'</td><td>'+money(x.total)+'</td><td>'+esc(x.status)+'</td><td>'+esc(x.created_at?new Date(x.created_at).toLocaleString("bn-BD"):"—")+'</td></tr>').join("")+'</tbody></table>';
-   $("orderDeskExport").onclick=()=>{const lines=[["Order","Customer","Phone","Total","Status","Created"],...filtered.map(x=>[x.order_number||x.id,x.customer_name,x.customer_phone,x.total,x.status,x.created_at])];const csv=lines.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");const u=URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=u;a.download="im-shop-orders.csv";a.click();URL.revokeObjectURL(u);};
-  }
-  $("orderDeskSearch").oninput=draw;$("orderDeskStatus").onchange=draw;draw();
-  $("orderDeskRows").addEventListener("change",async ev=>{const sel=ev.target.closest(".orderDeskStatusEdit");if(!sel)return;sel.disabled=true;const {error}=await db.rpc("admin_update_order_status",{p_order_id:sel.dataset.id,p_status:sel.value});if(error){alert("স্ট্যাটাস পরিবর্তন হয়নি: "+error.message);sel.disabled=false;}else{const found=rows.find(x=>x.id===sel.dataset.id);if(found)found.status=sel.value;draw();}});
- }
- document.getElementById("sideNav")?.addEventListener("click",e=>{const b=e.target.closest('[data-page="orders"]');if(b)setTimeout(()=>load().catch(err=>{const el=$("ordersList");if(el)el.textContent=err.message;}),700);});
-})();
-
-
 /* Security workspace v2: assign a role to an existing active staff member and edit role permissions. */
 (() => {
  const C=window.IMSHOP_CONFIG||{};if(!window.supabase||!C.SUPABASE_URL||!C.SUPABASE_ANON_KEY)return;
