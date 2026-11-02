@@ -75,7 +75,7 @@
    const tr=b.closest("tr"),qty=Number(tr.querySelector(".inv-v2-qty").value);
    if(!Number.isInteger(qty)||qty<0){alert("স্টক শূন্য বা তার বেশি পূর্ণসংখ্যা হতে হবে।");return;}
    b.disabled=true;
-   const {error}=await db.from("products").update({stock_quantity:qty}).eq("id",tr.dataset.id);
+   const {error}=await db.rpc("admin_adjust_stock",{p_product_id:tr.dataset.id,p_new_quantity:qty,p_reason:"manual_adjustment"});
    if(error)alert("স্টক সংরক্ষণ হয়নি: "+error.message);else renderInventory();
    b.disabled=false;
   });
@@ -301,4 +301,34 @@
   $("storeSettingsV2").onsubmit=async ev=>{ev.preventDefault();const fd=new FormData(ev.currentTarget);const payload=fields.map(([key])=>({setting_key:key,setting_value:{value:["dhaka_delivery_charge","outside_dhaka_delivery_charge"].includes(key)?Number(fd.get(key)):String(fd.get(key)||"").trim()},updated_at:new Date().toISOString()}));for(const row of payload){if(["dhaka_delivery_charge","outside_dhaka_delivery_charge"].includes(row.key)&&(!Number.isFinite(row.value.value)||row.value.value<0)){$("storeSettingsV2Msg").textContent="ডেলিভারি চার্জ শূন্য বা তার বেশি সংখ্যা হতে হবে।";return;}}const {error}=await db.from("store_settings").upsert(payload,{onConflict:"setting_key"});$("storeSettingsV2Msg").textContent=error?"সংরক্ষণ হয়নি: "+error.message:"দোকানের সেটিংস সার্ভারে সংরক্ষিত হয়েছে।";};
  }
  document.getElementById("sideNav")?.addEventListener("click",e=>{if(e.target.closest('[data-page="settings"]'))setTimeout(()=>render().catch(err=>{const el=$("settingsPanel");if(el)el.textContent=err.message;}),1600);});
+})();
+
+
+/* Admin security workspace: Supabase Authenticator (TOTP) MFA enrollment and verification. */
+(() => {
+ const C=window.IMSHOP_CONFIG||{};if(!window.supabase||!C.SUPABASE_URL||!C.SUPABASE_ANON_KEY)return;
+ const db=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY),$=id=>document.getElementById(id);
+ const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+ async function render(){
+  const el=$("securityPanel");if(!el)return;
+  el.innerHTML='<p class="muted">নিরাপত্তা তথ্য লোড হচ্ছে…</p>';
+  const {data,error}=await db.auth.mfa.listFactors();
+  if(error){el.innerHTML='<p class="error">MFA তথ্য পাওয়া যায়নি: '+esc(error.message)+'</p>';return;}
+  const verified=(data?.totp||[]).filter(x=>x.status==="verified");
+  const aal=await db.auth.mfa.getAuthenticatorAssuranceLevel();
+  el.innerHTML='<div class="module-kpis"><article><b>'+(verified.length?'চালু':'চালু নয়')+'</b><span>Authenticator OTP</span></article><article><b>'+esc(aal.data?.currentLevel||'—')+'</b><span>বর্তমান সেশন স্তর</span></article><article><b>'+esc(aal.data?.nextLevel||'—')+'</b><span>প্রয়োজনীয় স্তর</span></article></div>'+
+   '<p class="muted">অ্যাডমিন অ্যাকাউন্টে Authenticator অ্যাপের ৬ সংখ্যার OTP যুক্ত করুন। Google Account-এর 2-Step Verification আলাদা বিষয়।</p>'+
+   (verified.length?'<p class="success">Authenticator MFA যাচাই করা আছে।</p><button id="mfaRemove" class="secondary" type="button">Authenticator বন্ধ করুন</button>':'<button id="mfaEnroll" class="primary" type="button">Authenticator OTP চালু করুন</button>')+
+   '<div id="mfaSetup"></div><p id="mfaMsg" class="message" aria-live="polite"></p>';
+  if(!verified.length){$("mfaEnroll").onclick=async()=>{
+    const b=$("mfaEnroll");b.disabled=true;
+    const {data,error}=await db.auth.mfa.enroll({factorType:"totp",friendlyName:"I M SHOP Admin"});
+    if(error){$("mfaMsg").textContent=error.message;b.disabled=false;return;}
+    const qr=data.totp.qr_code;
+    $("mfaSetup").innerHTML='<h3>১. QR কোড স্ক্যান করুন</h3><img alt="Authenticator QR code" style="max-width:220px;background:white;padding:12px" src="'+esc(qr)+'"><p>QR স্ক্যান না হলে এই Secret key হাতে লিখে Authenticator অ্যাপে যোগ করুন:</p><code>'+esc(data.totp.secret)+'</code><h3>২. ৬ সংখ্যার OTP লিখুন</h3><form id="mfaVerifyForm"><input name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" minlength="6" required placeholder="৬ সংখ্যার কোড"><button class="primary" type="submit">OTP যাচাই ও চালু করুন</button></form>';
+    $("mfaVerifyForm").onsubmit=async ev=>{ev.preventDefault();const code=String(new FormData(ev.currentTarget).get("code")).trim();const {data:ch,error:ce}=await db.auth.mfa.challenge({factorId:data.id});if(ce){$("mfaMsg").textContent=ce.message;return;}const {error:ve}=await db.auth.mfa.verify({factorId:data.id,challengeId:ch.id,code});$("mfaMsg").textContent=ve?"OTP যাচাই হয়নি: "+ve.message:"Authenticator MFA সফলভাবে চালু হয়েছে।";if(!ve)render();};
+   };
+  } else {$("mfaRemove").onclick=async()=>{if(!confirm("Authenticator MFA বন্ধ করবেন?"))return;const {error}=await db.auth.mfa.unenroll({factorId:verified[0].id});$("mfaMsg").textContent=error?error.message:"MFA বন্ধ হয়েছে।";if(!error)render();};}
+ }
+ document.getElementById("sideNav")?.addEventListener("click",e=>{if(e.target.closest('[data-page="security"]'))setTimeout(()=>render().catch(err=>{const el=$("securityPanel");if(el)el.textContent=err.message;}),300);});
 })();
