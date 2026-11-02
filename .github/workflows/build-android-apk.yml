@@ -1,4 +1,4 @@
-name: Build I M SHOP Android APK
+name: Build I M SHOP Admin Android APK (complete bundle)
 
 on:
   workflow_dispatch:
@@ -38,6 +38,8 @@ jobs:
         run: |
           mkdir -p www
           cp index.html config.js app.js modules.js styles.css manifest.webmanifest sw.js icon.svg www/
+      - name: Verify complete admin app bundle
+        run: test -f www/index.html && test -f www/app.js && test -f www/modules.js && test -f www/config.js && test -f www/sw.js && test -f www/manifest.webmanifest
       - name: Add Android platform
         run: npx cap add android
       - name: Sync web app
