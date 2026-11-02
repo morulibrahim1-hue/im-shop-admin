@@ -4,6 +4,7 @@
   const statusNames = {pending:"পেন্ডিং", confirmed:"কনফার্ম", processing:"প্রসেসিং", shipped:"পাঠানো হয়েছে", delivered:"ডেলিভারি সম্পন্ন", cancelled:"বাতিল"};
   let db = null;
   let currentUser = null;
+  let mfaSetupOnly = false;
   let toastTimer;
 
   function message(id, text, bad=false) {
@@ -18,13 +19,20 @@
   function escapeHtml(s) {
     return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   }
-  function showApp(user) {
+  function showApp(user, setupOnly=false) {
     currentUser = user;
+    mfaSetupOnly = setupOnly;
     $("loginView").classList.add("hidden"); $("appView").classList.remove("hidden");
     $("adminEmail").textContent = user.email || "Admin";
-    navigate("dashboard"); refreshAll();
+    document.querySelectorAll(".nav-item").forEach(b => { b.hidden = setupOnly && b.dataset.page !== "security"; });
+    if (setupOnly) {
+      navigate("security");
+      document.querySelector('#sideNav [data-page="security"]')?.click();
+    } else {
+      navigate("dashboard"); refreshAll();
+    }
   }
-  function showLogin() { $("appView").classList.add("hidden"); $("loginView").classList.remove("hidden"); }
+  function showLogin() { mfaSetupOnly = false; $("appView").classList.add("hidden"); $("loginView").classList.remove("hidden"); }
   async function isAdmin(user) {
     const { data, error } = await db.from("staff_profiles")
       .select("role,is_active").eq("user_id", user.id).maybeSingle();
@@ -54,6 +62,7 @@
     await Promise.allSettled([loadDashboard(), loadProducts(), loadCategories(), loadOrders(), loadStaff()]);
   }
   function navigate(page) {
+    if (mfaSetupOnly && page !== "security") return;
     document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
     $("page-" + page).classList.remove("hidden");
     document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.page === page));
@@ -219,7 +228,7 @@
     db = window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
     const {data:{session}} = await db.auth.getSession();
     if (session?.user) {
-      try { if (await isAdmin(session.user)) { await verifyAdminMfa(); showApp(session.user); } else { await db.auth.signOut(); message("loginMessage","এই অ্যাকাউন্টে অ্যাডমিন অনুমতি নেই।",true); } }
+      try { if (await isAdmin(session.user)) { const mfaOk = await verifyAdminMfa(); showApp(session.user, !mfaOk); } else { await db.auth.signOut(); message("loginMessage","এই অ্যাকাউন্টে অ্যাডমিন অনুমতি নেই।",true); } }
       catch(e) { message("loginMessage",e.message,true); }
     }
   }
@@ -230,8 +239,9 @@
     if (error) return message("loginMessage",error.message,true);
     try {
       if (!(await isAdmin(data.user))) { await db.auth.signOut(); return message("loginMessage","এই অ্যাকাউন্ট অ্যাডমিন হিসেবে অনুমোদিত নয়।",true); }
-      await verifyAdminMfa();
-      message("loginMessage","লগইন সফল।"); showApp(data.user);
+      const mfaOk = await verifyAdminMfa();
+      if (!mfaOk) { showApp(data.user, true); message("loginMessage","প্রথমে নিরাপত্তা মেনু থেকে Authenticator OTP চালু করুন।",true); return; }
+      message("loginMessage","লগইন ও OTP যাচাই সফল।"); showApp(data.user);
     } catch(err) { await db.auth.signOut(); message("loginMessage",err.message,true); }
   });
   $("logoutBtn").addEventListener("click",async()=>{await db.auth.signOut();showLogin();});
