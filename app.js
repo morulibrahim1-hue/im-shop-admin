@@ -34,6 +34,22 @@
     // Staff roles are not elevated to admin merely by having an assignment row.
     return data.role === "admin";
   }
+  async function verifyAdminMfa() {
+    const {data,error} = await db.auth.mfa.listFactors();
+    if (error) throw error;
+    const factor = (data?.totp || []).find(x => x.status === "verified");
+    if (!factor) return false; // First-time setup is available in the Security page.
+    const {data:aal,error:aalError} = await db.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (aalError) throw aalError;
+    if (aal?.currentLevel === "aal2") return true;
+    const {data:challenge,error:challengeError} = await db.auth.mfa.challenge({factorId:factor.id});
+    if (challengeError) throw challengeError;
+    const code = window.prompt("I M SHOP Admin OTP: Authenticator অ্যাপের ৬ সংখ্যার কোড দিন");
+    if (!code) throw new Error("OTP যাচাই বাতিল হয়েছে।");
+    const {error:verifyError} = await db.auth.mfa.verify({factorId:factor.id,challengeId:challenge.id,code:String(code).trim()});
+    if (verifyError) throw verifyError;
+    return true;
+  }
   async function refreshAll() {
     await Promise.allSettled([loadDashboard(), loadProducts(), loadCategories(), loadOrders(), loadStaff()]);
   }
@@ -203,7 +219,7 @@
     db = window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
     const {data:{session}} = await db.auth.getSession();
     if (session?.user) {
-      try { if (await isAdmin(session.user)) showApp(session.user); else { await db.auth.signOut(); message("loginMessage","এই অ্যাকাউন্টে অ্যাডমিন অনুমতি নেই।",true); } }
+      try { if (await isAdmin(session.user)) { await verifyAdminMfa(); showApp(session.user); } else { await db.auth.signOut(); message("loginMessage","এই অ্যাকাউন্টে অ্যাডমিন অনুমতি নেই।",true); } }
       catch(e) { message("loginMessage",e.message,true); }
     }
   }
@@ -214,6 +230,7 @@
     if (error) return message("loginMessage",error.message,true);
     try {
       if (!(await isAdmin(data.user))) { await db.auth.signOut(); return message("loginMessage","এই অ্যাকাউন্ট অ্যাডমিন হিসেবে অনুমোদিত নয়।",true); }
+      await verifyAdminMfa();
       message("loginMessage","লগইন সফল।"); showApp(data.user);
     } catch(err) { await db.auth.signOut(); message("loginMessage",err.message,true); }
   });
