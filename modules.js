@@ -229,7 +229,7 @@
  async function render(){
   const el=$("securityPanel");if(!el)return;
   el.innerHTML='<p class="muted">নিরাপত্তা তথ্য লোড হচ্ছে…</p>';
-  const [f,s]=await Promise.all([db.auth.mfa.listFactors(),db.from("staff_profiles").select("user_id,full_name,role,is_active,created_at").order("created_at",{ascending:false})]);
+  const [f,s,p]=await Promise.all([db.auth.mfa.listFactors(),db.from("staff_profiles").select("user_id,full_name,role,is_active,created_at").order("created_at",{ascending:false}),db.from("admin_app_permissions").select("id,role_key,module_key,can_view,can_create,can_edit,can_delete").order("role_key").order("module_key")]);
   if(f.error){el.innerHTML='<p class="error">MFA তথ্য পাওয়া যায়নি: '+esc(f.error.message)+'</p>';return;}
   if(s.error){el.innerHTML='<p class="error">স্টাফ তথ্য পাওয়া যায়নি: '+esc(s.error.message)+'</p>';return;}
   const verified=(f.data?.totp||[]).filter(x=>x.status==="verified");
@@ -241,6 +241,15 @@
    '<h3>অ্যাডমিন ও স্টাফ</h3><div class="table-wrap"><table><thead><tr><th>নাম</th><th>ভূমিকা</th><th>অবস্থা</th></tr></thead><tbody>'+
    (s.data||[]).map(x=>'<tr><td>'+esc(x.full_name||'নাম নেই')+'</td><td>'+esc(x.role)+'</td><td>'+(x.is_active?'সক্রিয়':'নিষ্ক্রিয়')+'</td></tr>').join('')+
    '</tbody></table></div>';
+  if(p.error){el.innerHTML+='<p class="error">Permission তালিকা লোড হয়নি: '+esc(p.error.message)+'</p>';return;}
+  const moduleNames={dashboard:"ড্যাশবোর্ড",products:"পণ্য",categories:"ক্যাটাগরি",orders:"অর্ডার",customers:"কাস্টমার",inventory:"স্টক",reports:"রিপোর্ট",payments:"পেমেন্ট",delivery:"ডেলিভারি",marketing:"মার্কেটিং",notifications:"নোটিফিকেশন",settings:"সেটিংস",security:"নিরাপত্তা"};
+  el.innerHTML+='<h3>স্টাফ Permission নিয়ন্ত্রণ</h3><p class="muted">Manager ও Staff-এর অনুমতি এখানে নির্ধারণ করুন। Admin-এর পূর্ণ অনুমতি অপরিবর্তিত থাকবে।</p><div class="table-wrap"><table><thead><tr><th>Role</th><th>মডিউল</th><th>দেখা</th><th>তৈরি</th><th>সম্পাদনা</th><th>মুছা</th></tr></thead><tbody>'+ (p.data||[]).map(x=>'<tr data-permission="'+esc(x.id)+'"><td>'+esc(x.role_key)+'</td><td>'+esc(moduleNames[x.module_key]||x.module_key)+'</td>'+["can_view","can_create","can_edit","can_delete"].map(k=>'<td><input type="checkbox" class="permission-toggle" data-field="'+k+'" '+(x[k]?"checked":"")+' aria-label="'+k+'"></td>').join("")+'</tr>').join("")+'</tbody></table></div>';
+  el.querySelectorAll(".permission-toggle").forEach(chk=>chk.onchange=async()=>{
+   const tr=chk.closest("tr"),id=tr.dataset.permission,field=chk.dataset.field;chk.disabled=true;
+   const {error}=await db.from("admin_app_permissions").update({[field]:chk.checked,updated_at:new Date().toISOString()}).eq("id",id);
+   if(error){alert("Permission পরিবর্তন হয়নি: "+error.message);chk.checked=!chk.checked;}else $("mfaMsg").textContent="স্টাফ Permission সংরক্ষিত হয়েছে।";
+   chk.disabled=false;
+  });
   if(!verified.length){
    $("mfaEnroll").onclick=async()=>{
     const btn=$("mfaEnroll");btn.disabled=true;
