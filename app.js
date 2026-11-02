@@ -5,6 +5,8 @@
   let db = null;
   let currentUser = null;
   let mfaSetupOnly = false;
+  let currentRole = "admin";
+  let rolePermissions = {};
   let toastTimer;
 
   function message(id, text, bad=false) {
@@ -19,28 +21,33 @@
   function escapeHtml(s) {
     return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   }
-  function showApp(user, setupOnly=false) {
+  async function showApp(user, setupOnly=false, profile=null) {
     currentUser = user;
+    currentRole = profile?.role || "admin";
     mfaSetupOnly = setupOnly;
-    $("loginView").classList.add("hidden"); $("appView").classList.remove("hidden");
-    $("adminEmail").textContent = user.email || "Admin";
-    document.querySelectorAll(".nav-item").forEach(b => { b.hidden = setupOnly && b.dataset.page !== "security"; });
-    if (setupOnly) {
-      navigate("security");
-      document.querySelector('#sideNav [data-page="security"]')?.click();
-    } else {
-      navigate("dashboard"); refreshAll();
+    rolePermissions = {};
+    if (currentRole !== "admin") {
+      const {data,error}=await db.from("admin_app_permissions").select("module_key,can_view,can_create,can_edit,can_delete").eq("role_key",currentRole);
+      if(error) throw error;
+      rolePermissions=Object.fromEntries((data||[]).map(x=>[x.module_key,x]));
     }
+    $("loginView").classList.add("hidden"); $("appView").classList.remove("hidden");
+    $("adminEmail").textContent = user.email || currentRole;
+    document.querySelectorAll(".nav-item").forEach(b => {
+      const page=b.dataset.page, module=page==="addProduct"?"products":page;
+      const perm=rolePermissions[module];
+      b.hidden = setupOnly ? page!=="security" : currentRole!=="admin" && (!perm?.can_view || (page==="addProduct" && !perm?.can_create));
+    });
+    if (setupOnly) { navigate("security"); }
+    else { navigate(currentRole==="admin"?"dashboard":"orders"); refreshAll(); }
   }
-  function showLogin() { mfaSetupOnly = false; $("appView").classList.add("hidden"); $("loginView").classList.remove("hidden"); }
-  async function isAdmin(user) {
+  function showLogin() { mfaSetupOnly = false; currentRole="admin";rolePermissions={};$("appView").classList.add("hidden"); $("loginView").classList.remove("hidden"); }
+  async function getStaffProfile(user) {
     const { data, error } = await db.from("staff_profiles")
       .select("role,is_active").eq("user_id", user.id).maybeSingle();
     if (error) throw error;
-    if (!data || data.is_active !== true) return false;
-    // Only an active admin profile grants admin-console access.
-    // Staff roles are not elevated to admin merely by having an assignment row.
-    return data.role === "admin";
+    if (!data || data.is_active !== true) return null;
+    return data;
   }
   async function verifyAdminMfa() {
     const {data,error} = await db.auth.mfa.listFactors();
@@ -63,6 +70,10 @@
   }
   function navigate(page) {
     if (mfaSetupOnly && page !== "security") return;
+    if(currentRole!=="admin"){
+      const module=page==="addProduct"?"products":page,perm=rolePermissions[module];
+      if(!perm?.can_view || (page==="addProduct"&&!perm.can_create)){toast("এই মেনু ব্যবহারের অনুমতি নেই।");return;}
+    }
     document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
     $("page-" + page).classList.remove("hidden");
     document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.page === page));
@@ -228,7 +239,7 @@
     db = window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
     const {data:{session}} = await db.auth.getSession();
     if (session?.user) {
-      try { if (await isAdmin(session.user)) { const mfaOk = await verifyAdminMfa(); showApp(session.user, !mfaOk); } else { await db.auth.signOut(); message("loginMessage","এই অ্যাকাউন্টে অ্যাডমিন অনুমতি নেই।",true); } }
+      try { const profile=await getStaffProfile(session.user); if(profile){ if(profile.role==="admin"){const mfaOk=await verifyAdminMfa();await showApp(session.user,!mfaOk,profile);}else{await showApp(session.user,false,profile);} } else { await db.auth.signOut(); message("loginMessage","এই অ্যাকাউন্টে সক্রিয় স্টাফ অনুমতি নেই।",true); } }
       catch(e) { message("loginMessage",e.message,true); }
     }
   }
@@ -238,10 +249,14 @@
     const {data,error} = await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});
     if (error) return message("loginMessage",error.message,true);
     try {
-      if (!(await isAdmin(data.user))) { await db.auth.signOut(); return message("loginMessage","এই অ্যাকাউন্ট অ্যাডমিন হিসেবে অনুমোদিত নয়।",true); }
-      const mfaOk = await verifyAdminMfa();
-      if (!mfaOk) { showApp(data.user, true); message("loginMessage","প্রথমে নিরাপত্তা মেনু থেকে Authenticator OTP চালু করুন।",true); return; }
-      message("loginMessage","লগইন ও OTP যাচাই সফল।"); showApp(data.user);
+      const profile=await getStaffProfile(data.user);
+      if(!profile){await db.auth.signOut();return message("loginMessage","এই অ্যাকাউন্টে সক্রিয় স্টাফ অনুমতি নেই।",true);}
+      if(profile.role==="admin"){
+        const mfaOk = await verifyAdminMfa();
+        if (!mfaOk) { await showApp(data.user, true, profile); message("loginMessage","প্রথমে নিরাপত্তা মেনু থেকে Authenticator OTP চালু করুন।",true); return; }
+        message("loginMessage","অ্যাডমিন লগইন ও OTP যাচাই সফল।");
+      } else { message("loginMessage","স্টাফ লগইন সফল।"); }
+      await showApp(data.user,false,profile);
     } catch(err) { await db.auth.signOut(); message("loginMessage",err.message,true); }
   });
   $("logoutBtn").addEventListener("click",async()=>{await db.auth.signOut();showLogin();});
