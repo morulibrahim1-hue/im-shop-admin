@@ -221,47 +221,6 @@
 })();
 
 
-/* Security workspace: admin TOTP MFA enrollment + staff overview. */
-(() => {
- const C=window.IMSHOP_CONFIG||{};if(!window.supabase||!C.SUPABASE_URL||!C.SUPABASE_ANON_KEY)return;
- const db=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY),$=id=>document.getElementById(id);
- const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
- async function render(){
-  const el=$("securityPanel");if(!el)return;
-  el.innerHTML='<p class="muted">নিরাপত্তা তথ্য লোড হচ্ছে…</p>';
-  const [f,s,p]=await Promise.all([db.auth.mfa.listFactors(),db.from("staff_profiles").select("user_id,full_name,role,is_active,created_at").order("created_at",{ascending:false}),db.from("admin_app_permissions").select("id,role_key,module_key,can_view,can_create,can_edit,can_delete").order("role_key").order("module_key")]);
-  if(f.error){el.innerHTML='<p class="error">MFA তথ্য পাওয়া যায়নি: '+esc(f.error.message)+'</p>';return;}
-  if(s.error){el.innerHTML='<p class="error">স্টাফ তথ্য পাওয়া যায়নি: '+esc(s.error.message)+'</p>';return;}
-  const verified=(f.data?.totp||[]).filter(x=>x.status==="verified");
-  const aal=await db.auth.mfa.getAuthenticatorAssuranceLevel();
-  el.innerHTML='<h3>অ্যাডমিন লগইন নিরাপত্তা</h3><div class="module-kpis"><article><b>'+(verified.length?'চালু':'চালু নয়')+'</b><span>Authenticator OTP</span></article><article><b>'+esc(aal.data?.currentLevel||'—')+'</b><span>বর্তমান সেশন</span></article><article><b>'+esc(aal.data?.nextLevel||'—')+'</b><span>পরবর্তী নিরাপত্তা স্তর</span></article></div>'+
-   '<p class="muted">Authenticator OTP চালু করলে পরবর্তী অ্যাডমিন লগইনে পাসওয়ার্ডের পর ৬ সংখ্যার কোড চাওয়া হবে। Google Account-এর 2-Step Verification আলাদা।</p>'+
-   (verified.length?'<p class="success">Authenticator MFA চালু আছে।</p>':'<button id="mfaEnroll" class="primary" type="button">Authenticator OTP চালু করুন</button>')+
-   '<div id="mfaSetup"></div><p id="mfaMsg" class="message" aria-live="polite"></p>'+
-   '<h3>অ্যাডমিন ও স্টাফ</h3><div class="table-wrap"><table><thead><tr><th>নাম</th><th>ভূমিকা</th><th>অবস্থা</th></tr></thead><tbody>'+
-   (s.data||[]).map(x=>'<tr><td>'+esc(x.full_name||'নাম নেই')+'</td><td>'+esc(x.role)+'</td><td>'+(x.is_active?'সক্রিয়':'নিষ্ক্রিয়')+'</td></tr>').join('')+
-   '</tbody></table></div>';
-  if(p.error){el.innerHTML+='<p class="error">Permission তালিকা লোড হয়নি: '+esc(p.error.message)+'</p>';return;}
-  const moduleNames={dashboard:"ড্যাশবোর্ড",products:"পণ্য",categories:"ক্যাটাগরি",orders:"অর্ডার",customers:"কাস্টমার",inventory:"স্টক",reports:"রিপোর্ট",payments:"পেমেন্ট",delivery:"ডেলিভারি",marketing:"মার্কেটিং",notifications:"নোটিফিকেশন",settings:"সেটিংস",security:"নিরাপত্তা"};
-  el.innerHTML+='<h3>স্টাফ Permission নিয়ন্ত্রণ</h3><p class="muted">Manager ও Staff-এর অনুমতি এখানে নির্ধারণ করুন। Admin-এর পূর্ণ অনুমতি অপরিবর্তিত থাকবে।</p><div class="table-wrap"><table><thead><tr><th>Role</th><th>মডিউল</th><th>দেখা</th><th>তৈরি</th><th>সম্পাদনা</th><th>মুছা</th></tr></thead><tbody>'+ (p.data||[]).map(x=>'<tr data-permission="'+esc(x.id)+'"><td>'+esc(x.role_key)+'</td><td>'+esc(moduleNames[x.module_key]||x.module_key)+'</td>'+["can_view","can_create","can_edit","can_delete"].map(k=>'<td><input type="checkbox" class="permission-toggle" data-field="'+k+'" '+(x[k]?"checked":"")+' aria-label="'+k+'"></td>').join("")+'</tr>').join("")+'</tbody></table></div>';
-  el.querySelectorAll(".permission-toggle").forEach(chk=>chk.onchange=async()=>{
-   const tr=chk.closest("tr"),id=tr.dataset.permission,field=chk.dataset.field;chk.disabled=true;
-   const {error}=await db.from("admin_app_permissions").update({[field]:chk.checked,updated_at:new Date().toISOString()}).eq("id",id);
-   if(error){alert("Permission পরিবর্তন হয়নি: "+error.message);chk.checked=!chk.checked;}else $("mfaMsg").textContent="স্টাফ Permission সংরক্ষিত হয়েছে।";
-   chk.disabled=false;
-  });
-  if(!verified.length){
-   $("mfaEnroll").onclick=async()=>{
-    const btn=$("mfaEnroll");btn.disabled=true;
-    const {data,error}=await db.auth.mfa.enroll({factorType:"totp",friendlyName:"I M SHOP Admin"});
-    if(error){$("mfaMsg").textContent=error.message;btn.disabled=false;return;}
-    $("mfaSetup").innerHTML='<h4>১. Authenticator অ্যাপে QR কোড স্ক্যান করুন</h4><img alt="Authenticator QR code" style="max-width:220px;background:white;padding:12px" src="'+esc(data.totp.qr_code)+'"><p>QR স্ক্যান না হলে Secret key লিখে যোগ করুন:</p><code>'+esc(data.totp.secret)+'</code><h4>২. অ্যাপের ৬ সংখ্যার কোড দিন</h4><form id="mfaVerifyForm"><input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" minlength="6" required placeholder="৬ সংখ্যার OTP"><button class="primary" type="submit">OTP যাচাই ও চালু করুন</button></form>';
-    $("mfaVerifyForm").onsubmit=async ev=>{ev.preventDefault();const code=String(new FormData(ev.currentTarget).get("code")).trim();const {data:ch,error:ce}=await db.auth.mfa.challenge({factorId:data.id});if(ce){$("mfaMsg").textContent=ce.message;return;}const {error:ve}=await db.auth.mfa.verify({factorId:data.id,challengeId:ch.id,code});$("mfaMsg").textContent=ve?"OTP যাচাই হয়নি: "+ve.message:"Authenticator MFA সফলভাবে চালু হয়েছে। পরবর্তী লগইন থেকে OTP লাগবে।";if(!ve)render();};
-   };
-  }
- }
- document.getElementById("sideNav")?.addEventListener("click",e=>{if(e.target.closest('[data-page="security"]'))setTimeout(()=>render().catch(err=>{const el=$("securityPanel");if(el)el.textContent=err.message;}),250);});
-})();
 /* Delivery and courier settings: courier_services + store_settings. */
 (() => {
  const C=window.IMSHOP_CONFIG||{};if(!window.supabase||!C.SUPABASE_URL||!C.SUPABASE_ANON_KEY)return;
