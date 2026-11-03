@@ -210,18 +210,30 @@
  async function reports(){
   const el=$("reportsPanel");if(!el)return;
   el.innerHTML='<p class="muted">বিক্রয় রিপোর্ট তৈরি হচ্ছে…</p>';
-  const {data,error}=await db.from("orders").select("id,order_number,customer_name,total,status,created_at").order("created_at",{ascending:false}).limit(2000);
-  if(error){el.innerHTML='<p class="error">'+esc(error.message)+'</p>';return;}
-  const rows=data||[];
-  el.innerHTML='<div class="toolbar"><label>শুরুর তারিখ<input id="reportV2From" type="date"></label><label>শেষ তারিখ<input id="reportV2To" type="date"></label><button id="reportV2Apply" class="secondary" type="button">রিপোর্ট দেখুন</button><button id="reportV2Export" class="secondary" type="button">CSV ডাউনলোড</button></div><div id="reportV2Summary"></div><div class="table-wrap" id="reportV2Table"></div>';
+  const [ordersResult,itemsResult]=await Promise.all([
+   db.from("orders").select("id,order_number,customer_name,total,status,payment_status,created_at").order("created_at",{ascending:false}).limit(5000),
+   db.from("order_items").select("order_id,product_name,quantity,line_total").limit(10000)
+  ]);
+  if(ordersResult.error){el.innerHTML='<p class="error">অর্ডার রিপোর্ট লোড হয়নি: '+esc(ordersResult.error.message)+'</p>';return;}
+  if(itemsResult.error){el.innerHTML='<p class="error">পণ্যভিত্তিক রিপোর্ট লোড হয়নি: '+esc(itemsResult.error.message)+'</p>';return;}
+  const rows=ordersResult.data||[],items=itemsResult.data||[];
+  el.innerHTML='<div class="toolbar"><label>শুরুর তারিখ<input id="reportV2From" type="date"></label><label>শেষ তারিখ<input id="reportV2To" type="date"></label><button id="reportV2Apply" class="secondary" type="button">রিপোর্ট দেখুন</button><button id="reportV2Export" class="secondary" type="button">অর্ডার CSV</button></div><div id="reportV2Summary"></div><div class="feature-card"><h3>পণ্যভিত্তিক বিক্রয়</h3><div class="table-wrap" id="reportV2Products"></div></div><div class="feature-card"><h3>অর্ডার তালিকা</h3><div class="table-wrap" id="reportV2Table"></div></div><p class="muted">নোট: অর্ডার মূল্য, পরিশোধিত অর্থ এবং বাতিল অর্ডার আলাদা করে দেখানো হয়েছে। সর্বোচ্চ ৫,০০০টি অর্ডার ও ১০,০০০টি অর্ডার-আইটেম এই রিপোর্টে আনা হয়।</p>';
   function draw(){
    const from=$("reportV2From").value,to=$("reportV2To").value;
+   if(from&&to&&from>to){$("reportV2Summary").innerHTML='<p class="error">শুরুর তারিখ শেষ তারিখের পরে হতে পারবে না।</p>';return;}
    const filtered=rows.filter(x=>(!from||String(x.created_at).slice(0,10)>=from)&&(!to||String(x.created_at).slice(0,10)<=to));
-   const paid=filtered.filter(x=>!["cancelled","failed"].includes(String(x.status).toLowerCase()));
-   const total=paid.reduce((s,x)=>s+Number(x.total||0),0);
-   $("reportV2Summary").innerHTML='<div class="module-kpis"><article><b>'+filtered.length+'</b><span>মোট অর্ডার</span></article><article><b>'+paid.length+'</b><span>বাতিল/ব্যর্থ বাদে</span></article><article><b>'+money(total)+'</b><span>অর্ডার মূল্য (প্রাপ্ত অর্থ নয়)</span></article></div>';
-   $("reportV2Table").innerHTML='<table><thead><tr><th>তারিখ</th><th>অর্ডার</th><th>ক্রেতা</th><th>মোট</th><th>স্ট্যাটাস</th></tr></thead><tbody>'+filtered.slice(0,500).map(x=>'<tr><td>'+new Date(x.created_at).toLocaleDateString("bn-BD")+'</td><td>'+esc(x.order_number||x.id)+'</td><td>'+esc(x.customer_name||"—")+'</td><td>'+money(x.total)+'</td><td>'+esc(x.status)+'</td></tr>').join("")+'</tbody></table>';
-   $("reportV2Export").onclick=()=>csv("im-shop-sales-report.csv",[["Date","Order","Customer","Total","Status"],...filtered.map(x=>[x.created_at,x.order_number||x.id,x.customer_name,x.total,x.status])]);
+   const valid=filtered.filter(x=>!["cancelled","canceled","failed"].includes(String(x.status||"").toLowerCase()));
+   const paid=valid.filter(x=>String(x.payment_status||"").toLowerCase()==="paid");
+   const total=valid.reduce((sum,x)=>sum+Number(x.total||0),0);
+   const paidTotal=paid.reduce((sum,x)=>sum+Number(x.total||0),0);
+   const cancelled=filtered.filter(x=>["cancelled","canceled","failed"].includes(String(x.status||"").toLowerCase()));
+   $("reportV2Summary").innerHTML='<div class="module-kpis"><article><b>'+filtered.length+'</b><span>মোট অর্ডার</span></article><article><b>'+valid.length+'</b><span>বাতিল বাদে অর্ডার</span></article><article><b>'+money(total)+'</b><span>বাতিল বাদে অর্ডার মূল্য</span></article><article><b>'+money(paidTotal)+'</b><span>পরিশোধিত অর্থ</span></article><article><b>'+cancelled.length+'</b><span>বাতিল/ব্যর্থ অর্ডার</span></article></div>';
+   const ids=new Set(filtered.map(x=>x.id)),productMap=new Map();
+   items.filter(x=>ids.has(x.order_id)).forEach(x=>{const key=x.product_name||"নামহীন পণ্য",v=productMap.get(key)||{name:key,qty:0,total:0};v.qty+=Number(x.quantity||0);v.total+=Number(x.line_total||0);productMap.set(key,v);});
+   const best=[...productMap.values()].sort((a,b)=>b.qty-a.qty).slice(0,20);
+   $("reportV2Products").innerHTML=best.length?'<table><thead><tr><th>পণ্য</th><th>বিক্রিত পরিমাণ</th><th>মোট মূল্য</th></tr></thead><tbody>'+best.map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+x.qty+'</td><td>'+money(x.total)+'</td></tr>').join("")+'</tbody></table>':'<p class="muted pad">এই সময়ে কোনো পণ্য বিক্রির তথ্য নেই।</p>';
+   $("reportV2Table").innerHTML=filtered.length?'<table><thead><tr><th>তারিখ</th><th>অর্ডার</th><th>ক্রেতা</th><th>মোট</th><th>অর্ডার অবস্থা</th><th>পেমেন্ট</th></tr></thead><tbody>'+filtered.slice(0,1000).map(x=>'<tr><td>'+new Date(x.created_at).toLocaleDateString("bn-BD")+'</td><td>'+esc(x.order_number||x.id)+'</td><td>'+esc(x.customer_name||"—")+'</td><td>'+money(x.total)+'</td><td>'+esc(x.status||"—")+'</td><td>'+esc(x.payment_status||"—")+'</td></tr>').join("")+'</tbody></table>':'<p class="muted pad">নির্বাচিত সময়ে কোনো অর্ডার নেই।</p>';
+   $("reportV2Export").onclick=()=>csv("im-shop-sales-report.csv",[["Date","Order","Customer","Total","Order status","Payment status"],...filtered.map(x=>[x.created_at,x.order_number||x.id,x.customer_name,x.total,x.status,x.payment_status])]);
   }
   $("reportV2Apply").onclick=draw;draw();
  }
