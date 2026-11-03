@@ -157,3 +157,62 @@ function renderCart() {
 
 searchBox.addEventListener("input", renderProducts);
 loadStore();
+
+
+/* I M SHOP customer support chat widget */
+(() => {
+  const style = document.createElement("style");
+  style.textContent = `
+  #imChatLauncher{position:fixed;right:18px;bottom:18px;z-index:30;border:0;border-radius:28px;background:#f5c542;color:#111827;font-weight:700;padding:14px 19px;box-shadow:0 5px 22px #0003}
+  #imChatBox{position:fixed;right:16px;bottom:78px;z-index:31;width:min(360px,calc(100vw - 24px));height:min(510px,calc(100vh - 110px));background:white;border:1px solid #ddd;border-radius:16px;box-shadow:0 8px 35px #0003;display:none;overflow:hidden;flex-direction:column;font-family:Arial,sans-serif}
+  #imChatBox.open{display:flex}#imChatHead{background:#172033;color:white;padding:14px;display:flex;justify-content:space-between;align-items:center}
+  #imChatHead button{background:transparent;color:white;border:0;font-size:22px}#imChatIntro{padding:10px 13px;background:#f7f7f8;font-size:13px;color:#555}
+  #imChatMessages{flex:1;overflow:auto;padding:12px;background:#f7f7f8}
+  .im-chat-msg{max-width:85%;padding:9px 11px;border-radius:12px;margin:7px 0;background:white;overflow-wrap:anywhere;font-size:14px}
+  .im-chat-msg.customer{margin-left:auto;background:#fff0bc}.im-chat-msg small{display:block;color:#777;font-size:10px;margin-top:5px}
+  #imChatForm{padding:10px;display:grid;gap:7px;border-top:1px solid #eee}
+  #imChatForm input,#imChatForm textarea{width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font:inherit}
+  #imChatForm textarea{resize:vertical;min-height:58px}#imChatForm button{border:0;border-radius:8px;padding:11px;background:#172033;color:white;font-weight:bold}
+  #imChatStatus{font-size:12px;color:#777;min-height:15px}
+  `;
+  document.head.appendChild(style);
+  const root=document.createElement("div");
+  root.innerHTML='<button id="imChatLauncher" type="button">💬 আমাদের সাথে কথা বলুন</button><section id="imChatBox" aria-label="কাস্টমার সাপোর্ট চ্যাট"><header id="imChatHead"><b>I M SHOP সহায়তা</b><button id="imChatClose" type="button" aria-label="বন্ধ">×</button></header><div id="imChatIntro">আপনার প্রশ্ন লিখুন, আমরা উত্তর দেব।</div><div id="imChatMessages" aria-live="polite"><p class="notice">চ্যাট শুরু করতে নাম ও মেসেজ দিন।</p></div><form id="imChatForm"><input name="name" maxlength="100" placeholder="আপনার নাম" required><input name="phone" maxlength="30" inputmode="tel" placeholder="মোবাইল নম্বর (ঐচ্ছিক)"><textarea name="body" maxlength="3000" placeholder="আপনার মেসেজ লিখুন…" required></textarea><div id="imChatStatus"></div><button type="submit">মেসেজ পাঠান</button></form></section>';
+  document.body.appendChild(root);
+  const box=document.getElementById("imChatBox"),form=document.getElementById("imChatForm"),msgs=document.getElementById("imChatMessages"),status=document.getElementById("imChatStatus");
+  const key="imshop_support_session_v1";let session=null,poll=null,busy=false;
+  try{session=JSON.parse(localStorage.getItem(key)||"null")}catch{}
+  function say(t){status.textContent=t}
+  function render(rows){
+    msgs.innerHTML=rows.length?rows.map(m=>'<article class="im-chat-msg '+(m.sender_type==="customer"?"customer":"admin")+'">'+escapeHTML(m.body)+'<small>'+(m.sender_type==="admin"?"I M SHOP":"আপনি")+' · '+new Date(m.created_at).toLocaleString("bn-BD")+'</small></article>').join(""):'<p class="notice">এখনো কোনো মেসেজ নেই।</p>';
+    msgs.scrollTop=msgs.scrollHeight;
+  }
+  async function refresh(){
+    if(!session)return;
+    const {data,error}=await client.rpc("public_support_messages",{p_conversation_id:session.id,p_token:session.token});
+    if(error){say("চ্যাট সংযোগ হচ্ছে না। পরে আবার চেষ্টা করুন।");return}
+    render(data||[]);
+    if(data?.[0]?.status==="closed"){say("এই কথোপকথনটি বন্ধ করা হয়েছে।");form.querySelector("button").disabled=true}
+  }
+  document.getElementById("imChatLauncher").onclick=()=>{box.classList.add("open");if(session)refresh();};
+  document.getElementById("imChatClose").onclick=()=>box.classList.remove("open");
+  if(session){form.elements.name.value=session.name||"";form.elements.phone.value=session.phone||"";form.elements.name.readOnly=true;form.elements.phone.readOnly=true;say("আগের কথোপকথন চালু আছে।");}
+  form.onsubmit=async ev=>{
+    ev.preventDefault();if(busy)return;
+    const name=form.elements.name.value.trim(),phone=form.elements.phone.value.trim(),body=form.elements.body.value.trim();
+    if(!body)return;busy=true;const btn=form.querySelector("button");btn.disabled=true;say("পাঠানো হচ্ছে…");
+    try{
+      if(!session){
+        const {data,error}=await client.rpc("create_public_support_chat",{p_name:name,p_phone:phone,p_subject:"ওয়েবসাইট থেকে বার্তা",p_body:body});
+        if(error)throw error;
+        session={id:data.conversation_id,token:data.token,name,phone};localStorage.setItem(key,JSON.stringify(session));
+        form.elements.name.readOnly=true;form.elements.phone.readOnly=true;
+      }else{
+        const {error}=await client.rpc("public_support_send",{p_conversation_id:session.id,p_token:session.token,p_body:body});if(error)throw error;
+      }
+      form.elements.body.value="";say("মেসেজ পাঠানো হয়েছে।");await refresh();
+    }catch(err){say("পাঠানো যায়নি: "+(err.message||"সংযোগ সমস্যা"))}
+    finally{busy=false;btn.disabled=false}
+  };
+  setInterval(()=>{if(box.classList.contains("open"))refresh()},8000);
+})();
