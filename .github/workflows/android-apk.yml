@@ -35,6 +35,11 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Validate JavaScript syntax
+        run: |
+          node --check app.js
+          node --check modules.js
+
       - name: Prepare Capacitor Android project
         run: |
           npm init -y
