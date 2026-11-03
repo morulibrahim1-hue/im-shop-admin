@@ -416,4 +416,5 @@
  }
  function showError(e){const el=$("securityPanel");if(el)el.innerHTML='<p class="error pad">নিরাপত্তার তথ্য লোড হয়নি: '+esc(e?.message||e)+'</p><button id="securityRetry" class="secondary" type="button">আবার চেষ্টা করুন</button>';$("securityRetry")?.addEventListener("click",()=>render().catch(showError));}
  document.getElementById("sideNav")?.addEventListener("click",e=>{if(e.target.closest('[data-page="security"]'))setTimeout(()=>render().catch(showError),250);});
+ window.addEventListener("imshop:page",e=>{if(e.detail?.page==="security")render().catch(showError);});
 })();
