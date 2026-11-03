@@ -109,7 +109,7 @@
   }
   function orderTable(rows) {
     if (!rows.length) return '<p class="pad muted">এখনো কোনো অর্ডার নেই।</p>';
-    return '<div class="toolbar"><label>অর্ডার খুঁজুন<input id="orderSearch" type="search" placeholder="অর্ডার নম্বর বা ক্রেতার নাম"></label><label>স্ট্যাটাস বাছাই<select id="orderStatusFilter"><option value="">সব স্ট্যাটাস</option>'+Object.entries(statusNames).map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join("")+'</select></label><button id="orderExport" class="secondary" type="button">CSV ডাউনলোড</button></div><div id="orderSummary" class="module-kpis"></div><div class="table-wrap"><table><thead><tr><th>অর্ডার নম্বর</th><th>ক্রেতা</th><th>মোট</th><th>বর্তমান অবস্থা</th><th>স্ট্যাটাস পরিবর্তন</th><th>তারিখ</th></tr></thead><tbody id="orderRows"></tbody></table></div>';
+    return '<div class="toolbar"><label>অর্ডার খুঁজুন<input id="orderSearch" type="search" placeholder="অর্ডার নম্বর বা ক্রেতার নাম"></label><label>স্ট্যাটাস বাছাই<select id="orderStatusFilter"><option value="">সব স্ট্যাটাস</option>'+Object.entries(statusNames).map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join("")+'</select></label><button id="orderExport" class="secondary" type="button">CSV ডাউনলোড</button></div><div id="orderSummary" class="module-kpis"></div><div class="table-wrap"><table><thead><tr><th>অর্ডার নম্বর</th><th>ক্রেতা</th><th>মোট</th><th>বর্তমান অবস্থা</th><th>স্ট্যাটাস পরিবর্তন</th><th>তারিখ</th><th>বিস্তারিত</th></tr></thead><tbody id="orderRows"></tbody></table></div>';
   }
   async function loadOrders() {
     const box = $("ordersList");
@@ -138,7 +138,26 @@
         [x.order_number,x.customer_name].some(v => String(v || "").toLocaleLowerCase().includes(q))
       );
       summary.innerHTML = '<article><b>'+filtered.length+'</b><span>দেখানো অর্ডার</span></article><article><b>'+money(filtered.filter(x=>!["cancelled","failed"].includes(String(x.status||"").toLowerCase())).reduce((n,x)=>n+Number(x.total||0),0))+'</b><span>বাতিল বাদে অর্ডার মূল্য</span></article>';
-      body.innerHTML = filtered.map(x => '<tr><td>'+escapeHtml(x.order_number||x.id)+'</td><td>'+escapeHtml(x.customer_name||"—")+'</td><td>'+money(x.total)+'</td><td><span class="status">'+escapeHtml(statusNames[x.status]||x.status||"—")+'</span></td><td><select class="status-select" data-order="'+escapeHtml(x.id)+'" aria-label="অর্ডারের নতুন অবস্থা">'+Object.entries(statusNames).map(([k,v])=>'<option value="'+k+'" '+(x.status===k?"selected":"")+'>'+v+'</option>').join("")+'</select></td><td>'+escapeHtml(x.created_at?new Date(x.created_at).toLocaleString("bn-BD"):"—")+'</td></tr>').join("") || '<tr><td colspan="6">কোনো অর্ডার মেলেনি।</td></tr>';
+      body.innerHTML = filtered.map(x => '<tr><td>'+escapeHtml(x.order_number||x.id)+'</td><td>'+escapeHtml(x.customer_name||"—")+'</td><td>'+money(x.total)+'</td><td><span class="status">'+escapeHtml(statusNames[x.status]||x.status||"—")+'</span></td><td><select class="status-select" data-order="'+escapeHtml(x.id)+'" aria-label="অর্ডারের নতুন অবস্থা">'+Object.entries(statusNames).map(([k,v])=>'<option value="'+k+'" '+(x.status===k?"selected":"")+'>'+v+'</option>').join("")+'</select></td><td>'+escapeHtml(x.created_at?new Date(x.created_at).toLocaleString("bn-BD"):"—")+'</td><td><button type="button" class="secondary order-detail" data-order="'+escapeHtml(x.id)+'">বিস্তারিত</button></td></tr>').join("") || '<tr><td colspan="7">কোনো অর্ডার মেলেনি।</td></tr>';
+      body.querySelectorAll(".order-detail").forEach(btn => btn.addEventListener("click", async () => {
+        const orderId=btn.dataset.order, existing=body.querySelector('[data-detail-for="'+orderId+'"]');
+        if(existing){existing.remove();btn.textContent="বিস্তারিত";return;}
+        body.querySelectorAll("[data-detail-for]").forEach(x=>x.remove());
+        body.querySelectorAll(".order-detail").forEach(x=>x.textContent="বিস্তারিত");
+        btn.textContent="লোড হচ্ছে…";btn.disabled=true;
+        try {
+          const [detail,items]=await Promise.all([
+            db.from("orders").select("order_number,customer_name,customer_phone,customer_address,subtotal,delivery_fee,total,payment_method,payment_status,notes,created_at").eq("id",orderId).single(),
+            db.from("order_items").select("product_name,quantity,unit_price,line_total").eq("order_id",orderId)
+          ]);
+          if(detail.error)throw detail.error;if(items.error)throw items.error;
+          const x=detail.data,fmt=v=>money(v),esc=escapeHtml;
+          const tr=document.createElement("tr");tr.dataset.detailFor=orderId;
+          tr.innerHTML='<td colspan="7"><div class="feature-card"><h3>অর্ডার: '+esc(x.order_number||orderId)+'</h3><p><b>ক্রেতা:</b> '+esc(x.customer_name||"—")+' · <b>মোবাইল:</b> '+esc(x.customer_phone||"—")+'</p><p><b>ঠিকানা:</b> '+esc(x.customer_address||"—")+'</p><div class="table-wrap"><table><thead><tr><th>পণ্য</th><th>পরিমাণ</th><th>একক দাম</th><th>মোট</th></tr></thead><tbody>'+(items.data||[]).map(it=>'<tr><td>'+esc(it.product_name||"—")+'</td><td>'+Number(it.quantity||0)+'</td><td>'+fmt(it.unit_price)+'</td><td>'+fmt(it.line_total)+'</td></tr>').join("")+'</tbody></table></div><p><b>পণ্যের মূল্য:</b> '+fmt(x.subtotal)+' · <b>ডেলিভারি:</b> '+fmt(x.delivery_fee)+' · <b>সর্বমোট:</b> '+fmt(x.total)+'</p><p><b>পেমেন্ট:</b> '+esc(x.payment_method||"—")+' / '+esc(x.payment_status||"—")+'</p><p><b>নোট:</b> '+esc(x.notes||"—")+'</p></div></td>';
+          btn.closest("tr").after(tr);btn.textContent="বন্ধ করুন";
+        } catch(err){toast("অর্ডারের বিস্তারিত আনা যায়নি: "+err.message);btn.textContent="বিস্তারিত";}
+        finally{btn.disabled=false;}
+      }));
       body.querySelectorAll(".status-select").forEach(sel => sel.addEventListener("change", async () => {
         const previous = rows.find(x=>x.id===sel.dataset.order)?.status;
         if (!previous || sel.value===previous) return;
