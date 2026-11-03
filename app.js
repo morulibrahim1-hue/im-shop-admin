@@ -77,7 +77,7 @@
     document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
     $("page-" + page).classList.remove("hidden");
     document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.page === page));
-    const titles = {dashboard:"ড্যাশবোর্ড",products:"পণ্যসমূহ",addProduct:"পণ্য যোগ করুন",orders:"অর্ডারসমূহ",staff:"স্টাফ ম্যানেজমেন্ট",settings:"সেটিংস",categories:"ক্যাটাগরি",inventory:"স্টক ও ইনভেন্টরি",customers:"কাস্টমার",reports:"বিক্রয় ও রিপোর্ট",payments:"পেমেন্ট",delivery:"ডেলিভারি",marketing:"কুপন ও প্রচার",notifications:"নোটিফিকেশন",security:"নিরাপত্তা"};
+    const titles = {dashboard:"ড্যাশবোর্ড",products:"পণ্যসমূহ",addProduct:"পণ্য যোগ করুন",orders:"অর্ডারসমূহ",staff:"স্টাফ ম্যানেজমেন্ট",settings:"সেটিংস",categories:"ক্যাটাগরি",inventory:"স্টক ও ইনভেন্টরি",customers:"কাস্টমার",reports:"বিক্রয় ও রিপোর্ট",payments:"পেমেন্ট",delivery:"ডেলিভারি",marketing:"কুপন ও প্রচার",notifications:"নোটিফিকেশন",chat:"ইউজার চ্যাট",security:"নিরাপত্তা"};
     $("pageTitle").textContent = titles[page] || "ড্যাশবোর্ড";
     window.dispatchEvent(new CustomEvent("imshop:page", {detail:{page}}));
   }
