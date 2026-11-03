@@ -186,14 +186,26 @@
  async function customers(){
   const el=$("customersPanel");if(!el)return;
   el.innerHTML='<p class="muted">ক্রেতার তথ্য লোড হচ্ছে…</p>';
-  const {data,error}=await db.from("customers").select("*").order("created_at",{ascending:false}).limit(1000);
-  if(error){el.innerHTML='<p class="error">'+esc(error.message)+'</p>';return;}
-  const rows=data||[];
-  const norm=c=>({name:c.full_name||c.name||c.customer_name||"",phone:c.phone||c.mobile||c.phone_number||"",email:c.email||"",date:c.created_at||"",id:c.id||""});
-  const normalized=rows.map(norm);
-  el.innerHTML='<div class="module-kpis"><article><b>'+rows.length+'</b><span>সর্বশেষ ১০০০ ক্রেতা</span></article></div><div class="toolbar"><label>ক্রেতা খুঁজুন<input id="customerV2Search" placeholder="নাম, মোবাইল বা ইমেইল"></label><button id="customerV2Export" class="secondary" type="button">CSV ডাউনলোড</button></div><div class="table-wrap"><table><thead><tr><th>নাম</th><th>মোবাইল</th><th>ইমেইল</th><th>যোগদানের তারিখ</th></tr></thead><tbody>'+normalized.map(c=>'<tr><td>'+esc(c.name||"—")+'</td><td>'+esc(c.phone||"—")+'</td><td>'+esc(c.email||"—")+'</td><td>'+esc(c.date?new Date(c.date).toLocaleDateString("bn-BD"):"—")+'</td></tr>').join("")+'</tbody></table></div>';
-  $("customerV2Search").oninput=e=>{const q=e.target.value.toLowerCase();el.querySelectorAll("tbody tr").forEach(tr=>tr.hidden=!tr.innerText.toLowerCase().includes(q));};
-  $("customerV2Export").onclick=()=>csv("im-shop-customers.csv",[["Name","Phone","Email","Created"],...normalized.map(c=>[c.name,c.phone,c.email,c.date])]);
+  const [cr,ar,or]=await Promise.all([
+   db.from("customers").select("id,full_name,phone,email,created_at").order("created_at",{ascending:false}).limit(1000),
+   db.from("customer_addresses").select("customer_id,district,thana,address,delivery_area").limit(3000),
+   db.from("orders").select("customer_phone,total,status,created_at").order("created_at",{ascending:false}).limit(3000)
+  ]);
+  if(cr.error){el.innerHTML='<p class="error">'+esc(cr.error.message)+'</p>';return;}
+  const rows=cr.data||[],addresses=ar.error?[]:(ar.data||[]),orders=or.error?[]:(or.data||[]);
+  const normalized=rows.map(c=>({id:c.id,name:c.full_name||"",phone:c.phone||"",email:c.email||"",date:c.created_at||"",addresses:addresses.filter(a=>a.customer_id===c.id),orders:orders.filter(o=>o.customer_phone===c.phone)}));
+  el.innerHTML='<div class="module-kpis"><article><b>'+rows.length+'</b><span>সর্বশেষ ১০০০ ক্রেতা</span></article><article><b>'+addresses.length+'</b><span>সংরক্ষিত ঠিকানা</span></article><article><b>'+orders.length+'</b><span>অর্ডার রেকর্ড</span></article></div><div class="toolbar"><label>ক্রেতা খুঁজুন<input id="customerV2Search" placeholder="নাম, মোবাইল বা ইমেইল"></label><button id="customerV2Export" class="secondary" type="button">CSV ডাউনলোড</button></div><div class="table-wrap"><table><thead><tr><th>নাম</th><th>মোবাইল</th><th>ইমেইল</th><th>অর্ডার</th><th>যোগদানের তারিখ</th><th>বিস্তারিত</th></tr></thead><tbody>'+normalized.map(c=>'<tr data-customer="'+esc(c.id)+'"><td>'+esc(c.name||"—")+'</td><td>'+esc(c.phone||"—")+'</td><td>'+esc(c.email||"—")+'</td><td>'+c.orders.length+'</td><td>'+esc(c.date?new Date(c.date).toLocaleDateString("bn-BD"):"—")+'</td><td><button type="button" class="secondary customer-detail">দেখুন</button></td></tr>').join("")+'</tbody></table></div>';
+  $("customerV2Search").oninput=e=>{const q=e.target.value.toLowerCase();el.querySelectorAll("tbody tr[data-customer]").forEach(tr=>tr.hidden=!tr.innerText.toLowerCase().includes(q));};
+  $("customerV2Export").onclick=()=>csv("im-shop-customers.csv",[["Name","Phone","Email","Created","Order count"],...normalized.map(c=>[c.name,c.phone,c.email,c.date,c.orders.length])]);
+  el.querySelectorAll(".customer-detail").forEach(btn=>btn.onclick=()=>{
+   const tr=btn.closest("tr"),c=normalized.find(x=>x.id===tr.dataset.customer),old=tr.nextElementSibling;
+   if(old?.dataset.customerDetail===c.id){old.remove();btn.textContent="দেখুন";return;}
+   el.querySelectorAll("[data-customer-detail]").forEach(x=>x.remove());
+   el.querySelectorAll(".customer-detail").forEach(x=>x.textContent="দেখুন");
+   const detail=document.createElement("tr");detail.dataset.customerDetail=c.id;
+   detail.innerHTML='<td colspan="6"><div class="feature-card"><h3>'+esc(c.name||"ক্রেতা")+'</h3><p><b>মোবাইল:</b> '+esc(c.phone||"—")+' · <b>ইমেইল:</b> '+esc(c.email||"—")+'</p><h4>সংরক্ষিত ঠিকানা</h4>'+(c.addresses.length?c.addresses.map(a=>'<p>'+esc([a.address,a.thana,a.district,a.delivery_area].filter(Boolean).join(", "))+'</p>').join(""):'<p class="muted">কোনো ঠিকানা নেই।</p>')+'<h4>অর্ডার ইতিহাস</h4>'+(c.orders.length?'<ul>'+c.orders.map(o=>'<li>'+new Date(o.created_at).toLocaleDateString("bn-BD")+' — '+money(o.total)+' — '+esc(o.status)+'</li>').join("")+'</ul>':'<p class="muted">কোনো অর্ডার নেই।</p>')+(ar.error?'<p class="error">ঠিকানা টেবিল: '+esc(ar.error.message)+'</p>':'')+(or.error?'<p class="error">অর্ডার টেবিল: '+esc(or.error.message)+'</p>':'')+'</div></td>';
+   tr.after(detail);btn.textContent="বন্ধ করুন";
+  });
  }
  async function reports(){
   const el=$("reportsPanel");if(!el)return;
@@ -311,7 +323,7 @@
   const v=Object.fromEntries((data||[]).map(x=>[x.setting_key,x.setting_value?.value??x.setting_value??""]));
   const fields=[["store_name","দোকানের নাম","I M SHOP"],["phone","যোগাযোগের মোবাইল",""],["support_email","সাপোর্ট ইমেইল",""],["address","দোকানের ঠিকানা",""],["dhaka_delivery_charge","ঢাকার ডেলিভারি চার্জ (৳)","70"],["outside_dhaka_delivery_charge","ঢাকার বাইরের ডেলিভারি চার্জ (৳)","120"],["currency","মুদ্রা","BDT"],["order_prefix","অর্ডার নম্বরের প্রিফিক্স","IM"]];
   el.innerHTML='<form id="storeSettingsV2" class="module-form"><h3>দোকানের পরিচিতি</h3>'+fields.map(([k,label,def])=>'<label>'+label+'<input name="'+k+'" '+(["dhaka_delivery_charge","outside_dhaka_delivery_charge"].includes(k)?'type="number" min="0" step="1"':'')+' value="'+esc(v[k]??def)+'" '+(k==="store_name"?"required":"")+'></label>').join("")+'<button class="primary" type="submit">সব সেটিংস সংরক্ষণ</button><p id="storeSettingsV2Msg" aria-live="polite"></p></form><p class="muted">এই মানগুলো অ্যাডমিন সেটিংসে সংরক্ষিত হবে। ডেলিভারি চার্জ Checkout-এ স্বয়ংক্রিয়ভাবে প্রয়োগ হচ্ছে—এমন নয়; সেটি অর্ডার তৈরির backend-এ আলাদাভাবে যুক্ত ও পরীক্ষা করতে হবে।';
-  $("storeSettingsV2").onsubmit=async ev=>{ev.preventDefault();const fd=new FormData(ev.currentTarget);const payload=fields.map(([key])=>({setting_key:key,setting_value:{value:["dhaka_delivery_charge","outside_dhaka_delivery_charge"].includes(key)?Number(fd.get(key)):String(fd.get(key)||"").trim()},updated_at:new Date().toISOString()}));for(const row of payload){if(["dhaka_delivery_charge","outside_dhaka_delivery_charge"].includes(row.setting_key)&&(!Number.isFinite(row.setting_value.value)||row.setting_value.value<0)){$("storeSettingsV2Msg").textContent="ডেলিভারি চার্জ শূন্য বা তার বেশি সংখ্যা হতে হবে।";return;}}const {error}=await db.from("store_settings").upsert(payload,{onConflict:"setting_key"});$("storeSettingsV2Msg").textContent=error?"সংরক্ষণ হয়নি: "+error.message:"দোকানের সেটিংস সার্ভারে সংরক্ষিত হয়েছে।";};
+  $("storeSettingsV2").onsubmit=async ev=>{ev.preventDefault();const fd=new FormData(ev.currentTarget);const payload=fields.map(([key])=>({setting_key:key,setting_value:{value:["dhaka_delivery_charge","outside_dhaka_delivery_charge"].includes(key)?Number(fd.get(key)):String(fd.get(key)||"").trim()}}));for(const row of payload){if(["dhaka_delivery_charge","outside_dhaka_delivery_charge"].includes(row.setting_key)&&(!Number.isFinite(row.setting_value.value)||row.setting_value.value<0)){$("storeSettingsV2Msg").textContent="ডেলিভারি চার্জ শূন্য বা তার বেশি সংখ্যা হতে হবে।";return;}}const {error}=await db.from("store_settings").upsert(payload,{onConflict:"setting_key"});$("storeSettingsV2Msg").textContent=error?"সংরক্ষণ হয়নি: "+error.message:"দোকানের সেটিংস সার্ভারে সংরক্ষিত হয়েছে।";};
  }
  document.getElementById("sideNav")?.addEventListener("click",e=>{if(e.target.closest('[data-page="settings"]'))setTimeout(()=>render().catch(err=>{const el=$("settingsPanel");if(el)el.textContent=err.message;}),1600);});
 })();
