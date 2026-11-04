@@ -377,21 +377,10 @@
     const btn=$("securityStartTotp");btn.disabled=true;
     const box=$("securityEnrollBox");box.innerHTML='<p class="muted">Authenticator সেটআপ তৈরি হচ্ছে…</p>';
     try{
-     // Recover an abandoned, unverified TOTP enrollment before creating a fresh QR.
-     const {data:factorData,error:factorError}=await db.auth.mfa.listFactors();
-     if(factorError)throw factorError;
-     const allFactors=[...(factorData?.totp||[]),...(factorData?.phone||[])];
-     const abandoned=(factorData?.totp||[]).filter(x=>x.status!=="verified"&&x.friendly_name==="I M SHOP Admin");
-     for(const factor of abandoned){
-      const {error:removeError}=await db.auth.mfa.unenroll({factorId:factor.id});
-      if(removeError)throw removeError;
-     }
-     // Never remove a verified factor. Use a fresh unique label if Supabase
-     // still has the original friendly name registered on this account.
-     const remaining=allFactors.filter(x=>!abandoned.some(a=>a.id===x.id));
-     const usedNames=new Set(remaining.map(x=>String(x.friendly_name||"")));
-     let friendlyName="I M SHOP Admin",suffix=2;
-     while(usedNames.has(friendlyName))friendlyName="I M SHOP Admin "+(suffix++);
+     // Preserve every existing factor. Use a unique name for each new enrollment
+     // because Supabase may retain the friendly-name uniqueness constraint after
+     // an abandoned enrollment has been removed.
+     const friendlyName="I M SHOP Admin Setup "+new Date().toISOString().replace(/[^0-9]/g,"").slice(0,14);
      const {data,error}=await db.auth.mfa.enroll({factorType:"totp",friendlyName});
      if(error)throw error;
      pendingFactor=data;
