@@ -380,12 +380,19 @@
      // Recover an abandoned, unverified TOTP enrollment before creating a fresh QR.
      const {data:factorData,error:factorError}=await db.auth.mfa.listFactors();
      if(factorError)throw factorError;
+     const allFactors=[...(factorData?.totp||[]),...(factorData?.phone||[])];
      const abandoned=(factorData?.totp||[]).filter(x=>x.status!=="verified"&&x.friendly_name==="I M SHOP Admin");
      for(const factor of abandoned){
       const {error:removeError}=await db.auth.mfa.unenroll({factorId:factor.id});
       if(removeError)throw removeError;
      }
-     const {data,error}=await db.auth.mfa.enroll({factorType:"totp",friendlyName:"I M SHOP Admin"});
+     // Never remove a verified factor. Use a fresh unique label if Supabase
+     // still has the original friendly name registered on this account.
+     const remaining=allFactors.filter(x=>!abandoned.some(a=>a.id===x.id));
+     const usedNames=new Set(remaining.map(x=>String(x.friendly_name||"")));
+     let friendlyName="I M SHOP Admin",suffix=2;
+     while(usedNames.has(friendlyName))friendlyName="I M SHOP Admin "+(suffix++);
+     const {data,error}=await db.auth.mfa.enroll({factorType:"totp",friendlyName});
      if(error)throw error;
      pendingFactor=data;
      box.innerHTML='<div class="panel"><h3>Authenticator অ্যাপে স্ক্যান করুন</h3><p>নিচের QR কোডটি Google Authenticator দিয়ে স্ক্যান করুন।</p><img alt="Authenticator QR code" style="width:220px;max-width:100%;background:#fff;padding:10px;border-radius:8px" src="'+data.totp.qr_code+'"><p>স্ক্যান করতে না পারলে Secret key হাতে লিখে যোগ করুন:</p><p><code style="word-break:break-all">'+esc(data.totp.secret)+'</code></p><form id="securityVerifyTotp" class="module-form"><label>Authenticator-এর ৬ সংখ্যার কোড<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required></label><button class="primary" type="submit">OTP যাচাই ও MFA চালু করুন</button><p id="securityTotpMsg" class="message" aria-live="polite"></p></form></div>';
