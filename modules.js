@@ -377,6 +377,14 @@
     const btn=$("securityStartTotp");btn.disabled=true;
     const box=$("securityEnrollBox");box.innerHTML='<p class="muted">Authenticator সেটআপ তৈরি হচ্ছে…</p>';
     try{
+     // Recover an abandoned, unverified TOTP enrollment before creating a fresh QR.
+     const {data:factorData,error:factorError}=await db.auth.mfa.listFactors();
+     if(factorError)throw factorError;
+     const abandoned=(factorData?.totp||[]).filter(x=>x.status!=="verified"&&x.friendly_name==="I M SHOP Admin");
+     for(const factor of abandoned){
+      const {error:removeError}=await db.auth.mfa.unenroll({factorId:factor.id});
+      if(removeError)throw removeError;
+     }
      const {data,error}=await db.auth.mfa.enroll({factorType:"totp",friendlyName:"I M SHOP Admin"});
      if(error)throw error;
      pendingFactor=data;
