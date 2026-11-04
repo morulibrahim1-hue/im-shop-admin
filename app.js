@@ -50,7 +50,6 @@
     await Promise.allSettled([loadDashboard(), loadProducts(), loadCategories(), loadOrders(), loadStaff()]);
   }
   function navigate(page) {
-    if (mfaSetupOnly && page !== "security") return;
     if(currentRole!=="admin"){
       const module=page==="addProduct"?"products":page,perm=rolePermissions[module];
       if(!perm?.can_view || (page==="addProduct"&&!perm.can_create)){toast("এই মেনু ব্যবহারের অনুমতি নেই।");return;}
