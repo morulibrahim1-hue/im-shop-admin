@@ -4,7 +4,6 @@
   const statusNames = {pending:"পেন্ডিং", confirmed:"কনফার্ম", processing:"প্রসেসিং", shipped:"পাঠানো হয়েছে", delivered:"ডেলিভারি সম্পন্ন", cancelled:"বাতিল"};
   let db = null;
   let currentUser = null;
-  let mfaSetupOnly = false;
   let currentRole = "admin";
   let rolePermissions = {};
   let toastTimer;
@@ -21,10 +20,9 @@
   function escapeHtml(s) {
     return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   }
-  async function showApp(user, setupOnly=false, profile=null) {
+  async function showApp(user, profile=null) {
     currentUser = user;
     currentRole = profile?.role || "admin";
-    mfaSetupOnly = setupOnly;
     rolePermissions = {};
     if (currentRole !== "admin") {
       const {data,error}=await db.from("admin_app_permissions").select("module_key,can_view,can_create,can_edit,can_delete").eq("role_key",currentRole);
@@ -36,34 +34,17 @@
     document.querySelectorAll(".nav-item").forEach(b => {
       const page=b.dataset.page, module=page==="addProduct"?"products":page;
       const perm=rolePermissions[module];
-      b.hidden = setupOnly ? page!=="security" : currentRole!=="admin" && (!perm?.can_view || (page==="addProduct" && !perm?.can_create));
+      b.hidden = currentRole!=="admin" && (!perm?.can_view || (page==="addProduct" && !perm?.can_create));
     });
-    if (setupOnly) { navigate("security"); }
-    else { navigate(currentRole==="admin"?"dashboard":"orders"); refreshAll(); }
+    navigate(currentRole==="admin"?"dashboard":"orders"); refreshAll();
   }
-  function showLogin() { mfaSetupOnly = false; currentRole="admin";rolePermissions={};$("appView").classList.add("hidden"); $("loginView").classList.remove("hidden"); }
+  function showLogin() { currentRole="admin";rolePermissions={};$("appView").classList.add("hidden"); $("loginView").classList.remove("hidden"); }
   async function getStaffProfile(user) {
     const { data, error } = await db.from("staff_profiles")
       .select("role,is_active").eq("user_id", user.id).maybeSingle();
     if (error) throw error;
     if (!data || data.is_active !== true) return null;
     return data;
-  }
-  async function verifyAdminMfa() {
-    const {data,error} = await db.auth.mfa.listFactors();
-    if (error) throw error;
-    const factor = (data?.totp || []).find(x => x.status === "verified");
-    if (!factor) return false; // First-time setup is available in the Security page.
-    const {data:aal,error:aalError} = await db.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (aalError) throw aalError;
-    if (aal?.currentLevel === "aal2") return true;
-    const {data:challenge,error:challengeError} = await db.auth.mfa.challenge({factorId:factor.id});
-    if (challengeError) throw challengeError;
-    const code = window.prompt("I M SHOP Admin OTP: Authenticator অ্যাপের ৬ সংখ্যার কোড দিন");
-    if (!code) throw new Error("OTP যাচাই বাতিল হয়েছে।");
-    const {error:verifyError} = await db.auth.mfa.verify({factorId:factor.id,challengeId:challenge.id,code:String(code).trim()});
-    if (verifyError) throw verifyError;
-    return true;
   }
   async function refreshAll() {
     await Promise.allSettled([loadDashboard(), loadProducts(), loadCategories(), loadOrders(), loadStaff()]);
@@ -259,7 +240,7 @@
     db = window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
     const {data:{session}} = await db.auth.getSession();
     if (session?.user) {
-      try { const profile=await getStaffProfile(session.user); if(profile){ if(profile.role==="admin"){const mfaOk=await verifyAdminMfa();await showApp(session.user,!mfaOk,profile);}else{await showApp(session.user,false,profile);} } else { await db.auth.signOut(); message("loginMessage","এই অ্যাকাউন্টে সক্রিয় স্টাফ অনুমতি নেই।",true); } }
+      try { const profile=await getStaffProfile(session.user); if(profile){ await showApp(session.user,profile); } else { await db.auth.signOut(); message("loginMessage","এই অ্যাকাউন্টে সক্রিয় স্টাফ অনুমতি নেই।",true); } }
       catch(e) { message("loginMessage",e.message,true); }
     }
   }
@@ -271,12 +252,8 @@
     try {
       const profile=await getStaffProfile(data.user);
       if(!profile){await db.auth.signOut();return message("loginMessage","এই অ্যাকাউন্টে সক্রিয় স্টাফ অনুমতি নেই।",true);}
-      if(profile.role==="admin"){
-        const mfaOk = await verifyAdminMfa();
-        if (!mfaOk) { await showApp(data.user, true, profile); message("loginMessage","প্রথমে নিরাপত্তা মেনু থেকে Authenticator OTP চালু করুন।",true); return; }
-        message("loginMessage","অ্যাডমিন লগইন ও OTP যাচাই সফল।");
-      } else { message("loginMessage","স্টাফ লগইন সফল।"); }
-      await showApp(data.user,false,profile);
+      message("loginMessage",profile.role==="admin"?"অ্যাডমিন লগইন সফল।":"স্টাফ লগইন সফল।");
+      await showApp(data.user,profile);
     } catch(err) { await db.auth.signOut(); message("loginMessage",err.message,true); }
   });
   $("logoutBtn").addEventListener("click",async()=>{await db.auth.signOut();showLogin();});
