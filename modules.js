@@ -341,67 +341,23 @@
 })();
 
 
-/* Admin security workspace: account status, verified TOTP MFA, enrollment and verification. */
+/* Admin security workspace: account information only. */
 (() => {
  const C=window.IMSHOP_CONFIG||{};
  if(!window.supabase||!C.SUPABASE_URL||!C.SUPABASE_ANON_KEY)return;
- const db=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY),$=id=>document.getElementById(id);
- const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
- let pendingFactor=null;
+ const db=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY);
+ const $=id=>document.getElementById(id);
+ const esc=v=>String(v??"").replace(/[&<>"\']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","\'":"&#39;"}[c]));
  async function render(){
   const el=$("securityPanel");if(!el)return;
-  el.innerHTML='<p class="muted pad">নিরাপত্তার তথ্য লোড হচ্ছে…</p>';
+  el.innerHTML='<p class="muted pad">অ্যাকাউন্ট তথ্য লোড হচ্ছে…</p>';
   try{
-   const {data:{user},error:userError}=await db.auth.getUser();
-   if(userError)throw userError;
-   if(!user)throw new Error("লগইন সেশন পাওয়া যায়নি। লগআউট করে আবার লগইন করুন।");
-   const [profileResult,factorsResult,aalResult]=await Promise.all([
-    db.from("staff_profiles").select("full_name,role,is_active,created_at").eq("user_id",user.id).maybeSingle(),
-    db.auth.mfa.listFactors(),
-    db.auth.mfa.getAuthenticatorAssuranceLevel()
-   ]);
-   if(profileResult.error)throw profileResult.error;
-   if(factorsResult.error)throw factorsResult.error;
-   if(aalResult.error)throw aalResult.error;
-   const profile=profileResult.data||{},totp=factorsResult.data?.totp||[],verified=totp.filter(x=>x.status==="verified"),unverified=totp.filter(x=>x.status!=="verified");
-   el.innerHTML='<div class="module-kpis"><article><b>'+ (profile.is_active===true?'সক্রিয়':'যাচাই করুন')+'</b><span>অ্যাডমিন অ্যাকাউন্ট</span></article><article><b>'+(verified.length?'চালু':'চালু নয়')+'</b><span>Authenticator MFA</span></article><article><b>'+esc(aalResult.data?.currentLevel||'—')+'</b><span>বর্তমান সেশন স্তর</span></article></div>'+
-    '<h3>অ্যাকাউন্ট তথ্য</h3><div class="table-wrap"><table><tbody><tr><th>ইমেইল</th><td>'+esc(user.email||'—')+'</td></tr><tr><th>নাম</th><td>'+esc(profile.full_name||'—')+'</td></tr><tr><th>ভূমিকা</th><td>'+esc(profile.role||'—')+'</td></tr><tr><th>অ্যাকাউন্ট</th><td>'+(profile.is_active===true?'সক্রিয়':'নিষ্ক্রিয় / অনুপস্থিত')+'</td></tr><tr><th>ইমেইল নিশ্চিত</th><td>'+(user.email_confirmed_at?'হ্যাঁ':'না')+'</td></tr></tbody></table></div>'+
-    '<h3>Authenticator OTP (TOTP)</h3><p class="muted">Google Authenticator বা অন্য TOTP অ্যাপে I M SHOP Admin-এর ৬ সংখ্যার কোড ব্যবহার করুন। QR/secret কাউকে দেবেন না।</p>'+
-    (verified.length?'<p class="message success">Authenticator MFA চালু আছে। যাচাইকৃত ফ্যাক্টর: '+verified.length+'</p>':'<p class="message error">Authenticator MFA এখনো চালু/যাচাইকৃত নয়।</p>')+
-    (unverified.length?'<p class="muted">একটি অসম্পূর্ণ OTP সেটআপ পাওয়া গেছে। নতুন করে সেটআপ শুরু করলে আগের অসম্পূর্ণ সেটআপ বাতিল হতে পারে।</p>':'')+
-    '<div class="toolbar"><button id="securityStartTotp" class="primary" type="button">'+(verified.length?'আরেকটি Authenticator যোগ করুন':'Authenticator OTP চালু করুন')+'</button><button id="securityRefresh" class="secondary" type="button">তথ্য রিফ্রেশ</button></div><div id="securityEnrollBox"></div>'+
-    '<h3>সেশন নিরাপত্তা</h3><p>বর্তমান সেশন: <b>'+esc(aalResult.data?.currentLevel||'অজানা')+'</b>; প্রয়োজনীয় স্তর: <b>'+esc(aalResult.data?.nextLevel||'অজানা')+'</b></p>'+
-    '<p class="muted">Gmail-এ লগইন/পাসওয়ার্ড রিসেট ইমেইল আসা এবং Authenticator-এর TOTP কোড আলাদা ব্যবস্থা। এখানে TOTP-এর অবস্থা দেখানো হচ্ছে; Gmail OTP পাঠানো হয়েছে কি না এই পাতা তা নিশ্চিত করে না।</p>';
-   $("securityRefresh").onclick=()=>render().catch(showError);
-   $("securityStartTotp").onclick=async()=>{
-    const btn=$("securityStartTotp");btn.disabled=true;
-    const box=$("securityEnrollBox");box.innerHTML='<p class="muted">Authenticator সেটআপ তৈরি হচ্ছে…</p>';
-    try{
-     // Preserve every existing factor. Use a unique name for each new enrollment
-     // because Supabase may retain the friendly-name uniqueness constraint after
-     // an abandoned enrollment has been removed.
-     const friendlyName="I M SHOP Admin Setup "+new Date().toISOString().replace(/[^0-9]/g,"").slice(0,14);
-     const {data,error}=await db.auth.mfa.enroll({factorType:"totp",friendlyName});
-     if(error)throw error;
-     pendingFactor=data;
-     box.innerHTML='<div class="panel"><h3>Authenticator অ্যাপে স্ক্যান করুন</h3><p>নিচের QR কোডটি Google Authenticator দিয়ে স্ক্যান করুন।</p><img alt="Authenticator QR code" style="width:220px;max-width:100%;background:#fff;padding:10px;border-radius:8px" src="'+data.totp.qr_code+'"><p>স্ক্যান করতে না পারলে Secret key হাতে লিখে যোগ করুন:</p><p><code style="word-break:break-all">'+esc(data.totp.secret)+'</code></p><form id="securityVerifyTotp" class="module-form"><label>Authenticator-এর ৬ সংখ্যার কোড<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required></label><button class="primary" type="submit">OTP যাচাই ও MFA চালু করুন</button><p id="securityTotpMsg" class="message" aria-live="polite"></p></form></div>';
-     $("securityVerifyTotp").onsubmit=async ev=>{
-      ev.preventDefault();const form=ev.currentTarget,code=String(new FormData(form).get("code")||"").trim(),submit=form.querySelector("button");
-      if(!/^\d{6}$/.test(code)){ $("securityTotpMsg").textContent="৬ সংখ্যার কোড লিখুন।";return; }
-      submit.disabled=true;$("securityTotpMsg").textContent="OTP যাচাই হচ্ছে…";
-      try{
-       const {data:challenge,error:challengeError}=await db.auth.mfa.challenge({factorId:data.id});if(challengeError)throw challengeError;
-       const {error:verifyError}=await db.auth.mfa.verify({factorId:data.id,challengeId:challenge.id,code});if(verifyError)throw verifyError;
-       pendingFactor=null;$("securityTotpMsg").textContent="Authenticator OTP সফলভাবে যাচাই হয়েছে। MFA চালু হয়েছে।";$("securityTotpMsg").className="message success";
-       await render();
-      }catch(e){$("securityTotpMsg").textContent="OTP যাচাই হয়নি: "+e.message;$("securityTotpMsg").className="message error";submit.disabled=false;}
-     };
-    }catch(e){box.innerHTML='<p class="error">Authenticator সেটআপ শুরু হয়নি: '+esc(e.message)+'</p>';}
-    finally{btn.disabled=false;}
-   };
-  }catch(e){showError(e);}
+   const {data:{user},error}=await db.auth.getUser();if(error)throw error;if(!user)throw new Error("লগইন সেশন পাওয়া যায়নি।");
+   const {data:profile,error:profileError}=await db.from("staff_profiles").select("full_name,role,is_active,created_at").eq("user_id",user.id).maybeSingle();
+   if(profileError)throw profileError;
+   el.innerHTML='<h3>অ্যাডমিন অ্যাকাউন্ট</h3><div class="table-wrap"><table><tbody><tr><th>ইমেইল</th><td>'+esc(user.email||"—")+'</td></tr><tr><th>নাম</th><td>'+esc(profile?.full_name||"—")+'</td></tr><tr><th>ভূমিকা</th><td>'+esc(profile?.role||"—")+'</td></tr><tr><th>অ্যাকাউন্ট</th><td>'+(profile?.is_active===true?"সক্রিয়":"নিষ্ক্রিয় / অনুপস্থিত")+'</td></tr><tr><th>ইমেইল নিশ্চিত</th><td>'+(user.email_confirmed_at?"হ্যাঁ":"না")+'</td></tr></tbody></table></div><p class="muted">লগইন নিরাপত্তা: ইমেইল ও পাসওয়ার্ড।</p>';
+  }catch(e){el.innerHTML='<p class="error pad">অ্যাকাউন্ট তথ্য লোড হয়নি: '+esc(e.message)+'</p>';}
  }
- function showError(e){const el=$("securityPanel");if(el)el.innerHTML='<p class="error pad">নিরাপত্তার তথ্য লোড হয়নি: '+esc(e?.message||e)+'</p><button id="securityRetry" class="secondary" type="button">আবার চেষ্টা করুন</button>';$("securityRetry")?.addEventListener("click",()=>render().catch(showError));}
- document.getElementById("sideNav")?.addEventListener("click",e=>{if(e.target.closest('[data-page="security"]'))setTimeout(()=>render().catch(showError),250);});
- window.addEventListener("imshop:page",e=>{if(e.detail?.page==="security")render().catch(showError);});
+ document.getElementById("sideNav")?.addEventListener("click",e=>{if(e.target.closest('[data-page="security"]'))setTimeout(render,250);});
+ window.addEventListener("imshop:page",e=>{if(e.detail?.page==="security")render();});
 })();
