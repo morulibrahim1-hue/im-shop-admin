@@ -87,8 +87,9 @@
     $("productsList").innerHTML = error ? `<p class="pad error">${escapeHtml(error.message)}</p>` :
       (data?.length ? `<table><thead><tr><th>পণ্য</th><th>দাম</th><th>স্টক</th><th>অবস্থা</th></tr></thead><tbody>${data.map(x=>`<tr><td>${escapeHtml(x.name)}</td><td>${money(x.price)}</td><td>${x.stock_quantity ?? 0}</td><td>${x.is_active?"সক্রিয়":"বন্ধ"}</td></tr>`).join("")}</tbody></table>` : '<p class="pad muted">এখনো কোনো পণ্য যোগ করা হয়নি।</p>');
   }
-  function orderTable(rows) {
+  function orderTable(rows, full=true) {
     if (!rows.length) return '<p class="pad muted">এখনো কোনো অর্ডার নেই।</p>';
+    if (!full) return '<div class="table-wrap"><table><thead><tr><th>অর্ডার নম্বর</th><th>ক্রেতা</th><th>মোট</th><th>অবস্থা</th></tr></thead><tbody>'+rows.map(x=>'<tr><td>'+escapeHtml(x.order_number||"—") + '</td><td>'+escapeHtml(x.customer_name||"—") + '</td><td>'+money(x.total)+'</td><td>'+escapeHtml(statusNames[x.status]||x.status||"—")+'</td></tr>').join("")+'</tbody></table></div>';
     return '<div class="toolbar"><label>অর্ডার খুঁজুন<input id="orderSearch" type="search" placeholder="অর্ডার নম্বর বা ক্রেতার নাম"></label><label>স্ট্যাটাস বাছাই<select id="orderStatusFilter"><option value="">সব স্ট্যাটাস</option>'+Object.entries(statusNames).map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join("")+'</select></label><button id="orderExport" class="secondary" type="button">CSV ডাউনলোড</button></div><div id="orderSummary" class="module-kpis"></div><div class="table-wrap"><table><thead><tr><th>অর্ডার নম্বর</th><th>ক্রেতা</th><th>মোট</th><th>বর্তমান অবস্থা</th><th>স্ট্যাটাস পরিবর্তন</th><th>তারিখ</th><th>বিস্তারিত</th></tr></thead><tbody id="orderRows"></tbody></table></div>';
   }
   async function loadOrders() {
