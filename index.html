@@ -55,13 +55,13 @@
       </header>
 
       <section id="page-dashboard" class="page">
-        <section class="admin-hero">
+        <section class="admin-hero demo-hero">
           <div class="admin-hero-copy">
             <span class="admin-hero-kicker"><i></i> WELCOME TO YOUR STORE</span>
             <h1>I M SHOP</h1>
             <div class="admin-banner-label">ADMIN PANEL</div>
-            <p>আপনার ব্যবসা পরিচালনা করুন আরও সহজে। পণ্য, অর্ডার ও বিক্রয়ের সবকিছু এক জায়গায়।</p>
-            <div class="admin-hero-actions"><button class="admin-hero-button" data-goto="addProduct">＋ নতুন পণ্য যোগ করুন <span>↗</span></button><span class="admin-hero-note">MANAGE YOUR STORE · GROW YOUR BUSINESS</span></div>
+            <p>স্বাগতম, <b id="dashboardAdminName">Admin</b>। আপনার ব্যবসার সব কাজ এক জায়গা থেকে পরিচালনা করুন।</p>
+            <div class="admin-hero-actions"><button class="admin-hero-button" data-goto="addProduct">＋ নতুন পণ্য যোগ করুন <span>↗</span></button><span class="admin-hero-note">SHOP SMART · MANAGE SMART</span></div>
           </div>
           <div class="admin-hero-art" aria-hidden="true">
             <div class="admin-banner-bag">IM<span>SHOP</span></div>
@@ -69,13 +69,32 @@
             <div class="admin-banner-spark spark-one">✦</div><div class="admin-banner-spark spark-two">✦</div>
           </div>
         </section>
-        <div class="stats">
-          <article class="stat"><span>মোট পণ্য</span><strong id="statProducts">—</strong><small>সক্রিয় পণ্য</small></article>
-          <article class="stat"><span>মোট অর্ডার</span><strong id="statOrders">—</strong><small>সকল অর্ডার</small></article>
-          <article class="stat"><span>পেন্ডিং অর্ডার</span><strong id="statPending">—</strong><small>যাচাই প্রয়োজন</small></article>
-          <article class="stat"><span>মোট বিক্রয়</span><strong id="statSales">—</strong><small>বাতিল বাদে</small></article>
+        <div class="demo-section-heading"><div><h3>ব্যবসার সংক্ষিপ্ত হিসাব</h3><p>আপনার দোকানের বর্তমান অবস্থা</p></div></div>
+        <div class="stats demo-stats">
+          <article class="stat stat-orders"><span>মোট অর্ডার</span><strong id="statOrders">—</strong><small>সকল অর্ডার</small></article>
+          <article class="stat stat-sales"><span>মোট বিক্রয়</span><strong id="statSales">—</strong><small>বাতিল বাদে</small></article>
+          <article class="stat stat-products"><span>মোট পণ্য</span><strong id="statProducts">—</strong><small>পণ্যের তালিকা</small></article>
+          <article class="stat stat-pending"><span>পেন্ডিং অর্ডার</span><strong id="statPending">—</strong><small>যাচাই প্রয়োজন</small></article>
         </div>
-        <div class="panel"><div class="panel-head"><div><h3>সাম্প্রতিক অর্ডার</h3><p class="muted">সর্বশেষ ৫টি অর্ডার</p></div><button class="text-btn" data-goto="orders">সব দেখুন →</button></div><div id="recentOrders" class="table-wrap"><p class="muted pad">লোড হচ্ছে…</p></div></div>
+        <div class="demo-section-heading"><div><h3>অ্যাডমিন মেনু</h3><p>নিচের বিভাগগুলো সিরিয়াল ধরে সাজানো</p></div></div>
+        <div class="dashboard-shortcuts">
+          <button class="shortcut shortcut-blue" data-goto="products"><span>▣</span><b>পণ্য ব্যবস্থাপনা</b><small>পণ্যের তালিকা দেখুন</small></button>
+          <button class="shortcut shortcut-green" data-goto="addProduct"><span>＋</span><b>নতুন পণ্য যোগ</b><small>ছবি ও দামসহ যোগ করুন</small></button>
+          <button class="shortcut shortcut-orange" data-goto="orders"><span>▤</span><b>অর্ডার ব্যবস্থাপনা</b><small>অর্ডার দেখুন ও আপডেট</small></button>
+          <button class="shortcut shortcut-purple" data-goto="inventory"><span>▥</span><b>স্টক ও ইনভেন্টরি</b><small>স্টকের তথ্য</small></button>
+          <button class="shortcut shortcut-pink" data-goto="customers"><span>♙</span><b>কাস্টমার ম্যানেজমেন্ট</b><small>ক্রেতার তথ্য</small></button>
+          <button class="shortcut shortcut-cyan" data-goto="staff"><span>♧</span><b>স্টাফ ম্যানেজমেন্ট</b><small>কর্মীদের নিয়ন্ত্রণ</small></button>
+          <button class="shortcut shortcut-indigo" data-goto="reports"><span>▥</span><b>বিক্রয় ও রিপোর্ট</b><small>বিক্রয়ের হিসাব</small></button>
+          <button class="shortcut shortcut-yellow" data-goto="settings"><span>⚙</span><b>সেটিংস</b><small>অ্যাপের সেটিংস</small></button>
+          <button class="shortcut shortcut-blue" data-goto="categories"><span>▦</span><b>ক্যাটাগরি</b><small>পণ্যের বিভাগ</small></button>
+          <button class="shortcut shortcut-green" data-goto="payments"><span>৳</span><b>পেমেন্ট</b><small>পেমেন্ট ব্যবস্থাপনা</small></button>
+          <button class="shortcut shortcut-orange" data-goto="delivery"><span>➜</span><b>ডেলিভারি</b><small>ডেলিভারি ব্যবস্থাপনা</small></button>
+          <button class="shortcut shortcut-purple" data-goto="marketing"><span>％</span><b>কুপন ও প্রচার</b><small>অফার ব্যবস্থাপনা</small></button>
+          <button class="shortcut shortcut-pink" data-goto="chat"><span>✉</span><b>ইউজার চ্যাট</b><small>কাস্টমার মেসেজ</small></button>
+          <button class="shortcut shortcut-cyan" data-goto="notifications"><span>♧</span><b>নোটিফিকেশন</b><small>বার্তা ও আপডেট</small></button>
+          <button class="shortcut shortcut-indigo" data-goto="security"><span>◇</span><b>নিরাপত্তা</b><small>অ্যাকাউন্ট সুরক্ষা</small></button>
+        </div>
+        <div class="panel demo-recent"><div class="panel-head"><div><h3>সাম্প্রতিক অর্ডার</h3><p class="muted">সর্বশেষ ৫টি অর্ডার</p></div><button class="text-btn" data-goto="orders">সব দেখুন →</button></div><div id="recentOrders" class="table-wrap"><p class="muted pad">লোড হচ্ছে…</p></div></div>
       </section>
 
       <section id="page-products" class="page hidden">
