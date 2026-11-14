@@ -134,8 +134,15 @@
           if(detail.error)throw detail.error;if(items.error)throw items.error;
           const x=detail.data,fmt=v=>money(v),esc=escapeHtml;
           const tr=document.createElement("tr");tr.dataset.detailFor=orderId;
-          tr.innerHTML='<td colspan="7"><div class="feature-card"><h3>অর্ডার: '+esc(x.order_number||orderId)+'</h3><p><b>ক্রেতা:</b> '+esc(x.customer_name||"—")+' · <b>মোবাইল:</b> '+esc(x.customer_phone||"—")+'</p><p><b>ঠিকানা:</b> '+esc(x.customer_address||"—")+'</p><div class="table-wrap"><table><thead><tr><th>পণ্য</th><th>পরিমাণ</th><th>একক দাম</th><th>মোট</th></tr></thead><tbody>'+(items.data||[]).map(it=>'<tr><td>'+esc(it.product_name||"—")+'</td><td>'+Number(it.quantity||0)+'</td><td>'+fmt(it.unit_price)+'</td><td>'+fmt(it.line_total)+'</td></tr>').join("")+'</tbody></table></div><p><b>পণ্যের মূল্য:</b> '+fmt(x.subtotal)+' · <b>ডেলিভারি:</b> '+fmt(x.delivery_fee)+' · <b>সর্বমোট:</b> '+fmt(x.total)+'</p><p><b>পেমেন্ট:</b> '+esc(x.payment_method||"—")+' / '+esc(x.payment_status||"—")+'</p><p><b>নোট:</b> '+esc(x.notes||"—")+'</p></div></td>';
+          tr.innerHTML='<td colspan="7"><div class="feature-card"><div class="panel-head"><h3>অর্ডার: '+esc(x.order_number||orderId)+'</h3><button type="button" class="primary order-pdf">PDF / প্রিন্ট</button></div><p><b>ক্রেতা:</b> '+esc(x.customer_name||"—")+' · <b>মোবাইল:</b> '+esc(x.customer_phone||"—")+'</p><p><b>ঠিকানা:</b> '+esc(x.customer_address||"—")+'</p><div class="table-wrap"><table><thead><tr><th>পণ্য</th><th>পরিমাণ</th><th>একক দাম</th><th>মোট</th></tr></thead><tbody>'+(items.data||[]).map(it=>'<tr><td>'+esc(it.product_name||"—")+'</td><td>'+Number(it.quantity||0)+'</td><td>'+fmt(it.unit_price)+'</td><td>'+fmt(it.line_total)+'</td></tr>').join("")+'</tbody></table></div><p><b>পণ্যের মূল্য:</b> '+fmt(x.subtotal)+' · <b>ডেলিভারি:</b> '+fmt(x.delivery_fee)+' · <b>সর্বমোট:</b> '+fmt(x.total)+'</p><p><b>পেমেন্ট:</b> '+esc(x.payment_method||"—")+' / '+esc(x.payment_status||"—")+'</p><p><b>নোট:</b> '+esc(x.notes||"—")+'</p></div></td>';
           btn.closest("tr").after(tr);btn.textContent="বন্ধ করুন";
+          tr.querySelector(".order-pdf").onclick=()=>{
+            const w=window.open("","_blank");if(!w){toast("পপ-আপ অনুমতি দিন।");return;}
+            const safe=v=>esc(v||"—").replace(/\n/g,"<br>");
+            const itemsHtml=(items.data||[]).map(it=>'<tr><td>'+safe(it.product_name)+'</td><td>'+Number(it.quantity||0)+'</td><td>'+fmt(it.unit_price)+'</td><td>'+fmt(it.line_total)+'</td></tr>').join("");
+            w.document.write('<html><meta charset="utf-8"><title>I M SHOP Order</title><style>body{font:15px Arial;padding:28px;color:#17243a}h1{color:#1855ad}table{width:100%;border-collapse:collapse;margin:16px 0}td,th{border:1px solid #ccd4e0;padding:8px;text-align:left}th{background:#edf3ff}.total{text-align:right;font-size:20px;font-weight:bold}</style><h1>I M SHOP</h1><h2>কাস্টমার অর্ডার কপি</h2><p><b>অর্ডার নম্বর:</b> '+safe(x.order_number||orderId)+'</p><p><b>তারিখ:</b> '+safe(x.created_at?new Date(x.created_at).toLocaleString("bn-BD"):"—")+'</p><hr><p><b>নাম:</b> '+safe(x.customer_name)+'</p><p><b>মোবাইল:</b> '+safe(x.customer_phone)+'</p><p><b>সম্পূর্ণ ঠিকানা:</b><br>'+safe(x.customer_address)+'</p><table><tr><th>পণ্য</th><th>পরিমাণ</th><th>একক দাম</th><th>মোট</th></tr>'+itemsHtml+'</table><p>পণ্যের মূল্য: '+fmt(x.subtotal)+'<br>ডেলিভারি: '+fmt(x.delivery_fee)+'</p><p class="total">সর্বমোট: '+fmt(x.total)+'</p><p>পেমেন্ট: '+safe(x.payment_method)+' / '+safe(x.payment_status)+'</p><p>নোট: '+safe(x.notes)+'</p><script>window.onload=()=>window.print()<\/script></html>');
+            w.document.close();
+          };
         } catch(err){toast("অর্ডারের বিস্তারিত আনা যায়নি: "+err.message);btn.textContent="বিস্তারিত";}
         finally{btn.disabled=false;}
       }));
@@ -169,43 +176,27 @@
     draw();
   }
   async function loadStaff() {
-    const box = $("staffList");
-    if (!box) return;
-    const {data,error} = await db.from("staff_profiles")
-      .select("user_id,full_name,role,is_active,created_at")
-      .order("created_at",{ascending:false});
-    if (error) {
-      box.innerHTML = '<p class="pad error">স্টাফ তালিকা আনা যায়নি: ' + escapeHtml(error.message) + '</p>';
-      return;
-    }
-    if (!data?.length) {
-      box.innerHTML = '<p class="pad muted">এখনো কোনো স্টাফ প্রোফাইল নেই।</p>';
-      return;
-    }
-    box.innerHTML = '<table><thead><tr><th>নাম</th><th>ভূমিকা</th><th>অ্যাকাউন্ট</th><th>ইউজার আইডি</th></tr></thead><tbody>' +
-      data.map(s => '<tr><td>' + escapeHtml(s.full_name || "নাম দেওয়া হয়নি") + '</td><td><select class="staff-role" data-user="' + escapeHtml(s.user_id) + '">' +
-        ['admin','manager','staff'].map(r => '<option value="' + r + '"' + (s.role===r?' selected':'') + '>' + ({admin:'Admin',manager:'Manager',staff:'Staff'}[r]) + '</option>').join('') +
-        '</select></td><td><label class="staff-active"><input type="checkbox" class="staff-status" data-user="' + escapeHtml(s.user_id) + '"' + (s.is_active?' checked':'') + '> সক্রিয়</label></td><td><code>' + escapeHtml(s.user_id) + '</code></td></tr>').join('') + '</tbody></table>';
-    box.querySelectorAll(".staff-role").forEach(sel => sel.addEventListener("change", async () => {
-      if (sel.dataset.user === currentUser.id && sel.value !== "admin") {
-        toast("নিজের অ্যাডমিন ভূমিকা এখান থেকে পরিবর্তন করা যাবে না।"); await loadStaff(); return;
-      }
-      sel.disabled = true;
-      const {error:e} = await db.from("staff_profiles").update({role:sel.value}).eq("user_id",sel.dataset.user);
-      if (e) { toast("ভূমিকা পরিবর্তন হয়নি: " + e.message); }
-      else { toast("স্টাফের ভূমিকা আপডেট হয়েছে।"); }
-      await loadStaff();
-    }));
-    box.querySelectorAll(".staff-status").forEach(chk => chk.addEventListener("change", async () => {
-      if (chk.dataset.user === currentUser.id && !chk.checked) {
-        toast("নিজের অ্যাকাউন্ট এখান থেকে বন্ধ করা যাবে না।"); await loadStaff(); return;
-      }
-      chk.disabled = true;
-      const {error:e} = await db.from("staff_profiles").update({is_active:chk.checked}).eq("user_id",chk.dataset.user);
-      if (e) toast("অবস্থা পরিবর্তন হয়নি: " + e.message);
-      else toast("স্টাফ অ্যাকাউন্টের অবস্থা আপডেট হয়েছে।");
-      await loadStaff();
-    }));
+    const box=$("staffList");if(!box)return;
+    const {data,error}=await db.from("staff_profiles").select("user_id,full_name,role,is_active,created_at").order("created_at",{ascending:false});
+    if(error){box.innerHTML='<p class="pad error">'+escapeHtml(error.message)+'</p>';return;}
+    const rows=data||[];
+    box.innerHTML='<form id="staffAddForm" class="module-form"><h3>＋ নতুন স্টাফ যোগ করুন</h3><label>নাম<input name="full_name" required></label><label>ইমেইল<input name="email" type="email" required></label><label>প্রাথমিক পাসওয়ার্ড<input name="password" type="password" minlength="8" required></label><label>ভূমিকা<select name="role"><option value="staff">Staff</option><option value="manager">Manager</option></select></label><button class="primary" type="submit">স্টাফ অ্যাকাউন্ট তৈরি করুন</button><p id="staffAddMessage" class="message"></p></form>'+(rows.length?'<h3>স্টাফ তালিকা</h3><div class="table-wrap"><table><thead><tr><th>নাম</th><th>ভূমিকা</th><th>অ্যাকাউন্ট</th></tr></thead><tbody>'+rows.map(st=>'<tr><td>'+escapeHtml(st.full_name||"—")+'</td><td><select class="staff-role" data-user="'+st.user_id+'">'+['admin','manager','staff'].map(r=>'<option value="'+r+'"'+(st.role===r?' selected':'')+'>'+r+'</option>').join('')+'</select></td><td><label><input type="checkbox" class="staff-status" data-user="'+st.user_id+'"'+(st.is_active?' checked':'')+'> সক্রিয়</label></td></tr>').join('')+'</tbody></table></div>':'<p class="pad muted">এখনো কোনো স্টাফ নেই।</p>');
+    $("staffAddForm").onsubmit=async ev=>{
+      ev.preventDefault();const form=ev.currentTarget,fd=new FormData(form),msg=$("staffAddMessage"),btn=form.querySelector("button");
+      btn.disabled=true;msg.textContent="অ্যাকাউন্ট তৈরি হচ্ছে…";
+      let client;
+      try{
+        client=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+        const {data:userData,error:authErr}=await client.auth.signUp({email:String(fd.get("email")).trim(),password:String(fd.get("password")),options:{data:{full_name:String(fd.get("full_name")).trim()}}});
+        if(authErr)throw authErr;if(!userData.user)throw new Error("Auth user তৈরি হয়নি।");
+        const {error:profileErr}=await db.from("staff_profiles").insert({user_id:userData.user.id,full_name:String(fd.get("full_name")).trim(),role:String(fd.get("role")),is_active:true});
+        if(profileErr)throw profileErr;
+        msg.textContent="স্টাফ অ্যাকাউন্ট তৈরি হয়েছে। ইমেইল নিশ্চিতকরণ লাগতে পারে।";msg.className="message success";form.reset();await loadStaff();
+      }catch(err){msg.textContent="স্টাফ যোগ হয়নি: "+err.message;msg.className="message error";}
+      finally{btn.disabled=false;try{await client?.auth.signOut()}catch{}}
+    };
+    box.querySelectorAll(".staff-role").forEach(el=>el.onchange=async()=>{if(el.dataset.user===currentUser.id&&el.value!=="admin"){toast("নিজের ভূমিকা পরিবর্তন করা যাবে না।");return loadStaff()}const {error:e}=await db.from("staff_profiles").update({role:el.value}).eq("user_id",el.dataset.user);if(e)toast(e.message);await loadStaff()});
+    box.querySelectorAll(".staff-status").forEach(el=>el.onchange=async()=>{if(el.dataset.user===currentUser.id&&!el.checked){toast("নিজের অ্যাকাউন্ট বন্ধ করা যাবে না।");return loadStaff()}const {error:e}=await db.from("staff_profiles").update({is_active:el.checked}).eq("user_id",el.dataset.user);if(e)toast(e.message);await loadStaff()});
   }
   async function addProduct(e) {
     e.preventDefault(); const btn = $("productForm").querySelector("button[type=submit]"); btn.disabled=true;
