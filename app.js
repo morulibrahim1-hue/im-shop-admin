@@ -182,18 +182,25 @@
     const rows=data||[];
     box.innerHTML='<form id="staffAddForm" class="module-form"><h3>＋ নতুন স্টাফ যোগ করুন</h3><label>নাম<input name="full_name" required></label><label>ইমেইল<input name="email" type="email" required></label><label>প্রাথমিক পাসওয়ার্ড<input name="password" type="password" minlength="8" required></label><label>ভূমিকা<select name="role"><option value="staff">Staff</option><option value="manager">Manager</option></select></label><button class="primary" type="submit">স্টাফ অ্যাকাউন্ট তৈরি করুন</button><p id="staffAddMessage" class="message"></p></form>'+(rows.length?'<h3>স্টাফ তালিকা</h3><div class="table-wrap"><table><thead><tr><th>নাম</th><th>ভূমিকা</th><th>অ্যাকাউন্ট</th></tr></thead><tbody>'+rows.map(st=>'<tr><td>'+escapeHtml(st.full_name||"—")+'</td><td><select class="staff-role" data-user="'+st.user_id+'">'+['admin','manager','staff'].map(r=>'<option value="'+r+'"'+(st.role===r?' selected':'')+'>'+r+'</option>').join('')+'</select></td><td><label><input type="checkbox" class="staff-status" data-user="'+st.user_id+'"'+(st.is_active?' checked':'')+'> সক্রিয়</label></td></tr>').join('')+'</tbody></table></div>':'<p class="pad muted">এখনো কোনো স্টাফ নেই।</p>');
     $("staffAddForm").onsubmit=async ev=>{
-      ev.preventDefault();const form=ev.currentTarget,fd=new FormData(form),msg=$("staffAddMessage"),btn=form.querySelector("button");
-      btn.disabled=true;msg.textContent="অ্যাকাউন্ট তৈরি হচ্ছে…";
-      let client;
+      ev.preventDefault();
+      const form=ev.currentTarget,fd=new FormData(form),msg=$("staffAddMessage"),btn=form.querySelector("button");
+      btn.disabled=true;msg.textContent="নিরাপদভাবে স্টাফ অ্যাকাউন্ট তৈরি হচ্ছে…";msg.className="message";
       try{
-        client=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
-        const {data:userData,error:authErr}=await client.auth.signUp({email:String(fd.get("email")).trim(),password:String(fd.get("password")),options:{data:{full_name:String(fd.get("full_name")).trim()}}});
-        if(authErr)throw authErr;if(!userData.user)throw new Error("Auth user তৈরি হয়নি।");
-        const {error:profileErr}=await db.from("staff_profiles").insert({id:userData.user.id,user_id:userData.user.id,full_name:String(fd.get("full_name")).trim(),role:String(fd.get("role")),is_active:true});
-        if(profileErr)throw profileErr;
-        msg.textContent="স্টাফ অ্যাকাউন্ট তৈরি হয়েছে। ইমেইল নিশ্চিতকরণ লাগতে পারে।";msg.className="message success";form.reset();await loadStaff();
-      }catch(err){msg.textContent="স্টাফ যোগ হয়নি: "+err.message;msg.className="message error";}
-      finally{btn.disabled=false;try{await client?.auth.signOut()}catch{}}
+        const {data:sessionData,error:sessionError}=await db.auth.getSession();
+        if(sessionError)throw sessionError;
+        if(!sessionData.session)throw new Error("অ্যাডমিন সেশন পাওয়া যায়নি। আবার লগইন করুন।");
+        const {data:result,error}=await db.functions.invoke("admin-create-staff",{
+          body:{full_name:String(fd.get("full_name")||"").trim(),email:String(fd.get("email")||"").trim(),password:String(fd.get("password")||""),role:String(fd.get("role")||"staff")}
+        });
+        if(error)throw error;
+        if(result?.error)throw new Error(result.error);
+        msg.textContent=result?.message||"স্টাফ অ্যাকাউন্ট তৈরি হয়েছে।";
+        msg.className="message success";form.reset();await loadStaff();
+      }catch(err){
+        let message=err?.context?.error||err?.message||"অজানা সমস্যা";
+        try{if(err?.context?.json){const body=await err.context.json();message=body.error||message;}}catch{}
+        msg.textContent="স্টাফ যোগ হয়নি: "+message;msg.className="message error";
+      }finally{btn.disabled=false;}
     };
     box.querySelectorAll(".staff-role").forEach(el=>el.onchange=async()=>{if(el.dataset.user===currentUser.id&&el.value!=="admin"){toast("নিজের ভূমিকা পরিবর্তন করা যাবে না।");return loadStaff()}const {error:e}=await db.from("staff_profiles").update({role:el.value}).eq("user_id",el.dataset.user);if(e)toast(e.message);await loadStaff()});
     box.querySelectorAll(".staff-status").forEach(el=>el.onchange=async()=>{if(el.dataset.user===currentUser.id&&!el.checked){toast("নিজের অ্যাকাউন্ট বন্ধ করা যাবে না।");return loadStaff()}const {error:e}=await db.from("staff_profiles").update({is_active:el.checked}).eq("user_id",el.dataset.user);if(e)toast(e.message);await loadStaff()});
