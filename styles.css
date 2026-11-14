@@ -67,3 +67,26 @@ td code{font-size:10px;word-break:break-all;color:#64748b}
 .admin-hero-panel-front{width:150px;height:190px;right:119px;top:25px;padding:15px;background:linear-gradient(150deg,#f4e8d1,#d6b982);color:#183626;transform:rotate(-7deg)}.admin-hero-panel-front small{font-size:8px;letter-spacing:1px}.admin-hero-panel-front strong{font-size:21px;line-height:1.12;letter-spacing:1px}.admin-hero-panel-front i{font-style:normal;font-size:8px;letter-spacing:1px}
 .admin-hero-seal{position:absolute;right:0;bottom:0;background:#fff;color:#234331;border-radius:50%;width:67px;height:67px;display:grid;place-content:center;text-align:center;font-size:10px;line-height:1.15;transform:rotate(9deg);box-shadow:0 8px 20px #07190f44}.admin-hero-seal b{font-size:12px}
 @media(max-width:700px){.admin-hero{grid-template-columns:1fr;min-height:0;margin:16px 0 19px;padding:23px 20px 12px;border-radius:18px}.admin-hero h1{font-size:32px;margin:13px 0 8px}.admin-hero p{font-size:12px;line-height:1.7}.admin-hero-actions{gap:11px;margin-top:17px}.admin-hero-note{font-size:8px}.admin-hero-art{height:178px;width:100%;max-width:300px;margin:5px auto 0;justify-self:center}.admin-hero-ring{width:175px;height:175px;right:49px;top:0}.admin-hero-orb{width:105px;height:105px;right:84px;top:31px}.admin-hero-panel-back{width:98px;height:125px;right:14px;top:12px;padding:10px}.admin-hero-panel-back b{font-size:18px}.admin-hero-panel-front{width:110px;height:143px;right:105px;top:21px;padding:11px}.admin-hero-panel-front strong{font-size:16px}.admin-hero-panel-front small,.admin-hero-panel-front i{font-size:7px}.admin-hero-seal{width:56px;height:56px;font-size:8px}.admin-hero-seal b{font-size:10px}}
+
+
+/* I M SHOP bright blue branded admin banner */
+.admin-hero{position:relative;isolation:isolate;overflow:hidden;display:grid;grid-template-columns:1.15fr .85fr;align-items:center;min-height:275px;margin:25px 0 23px;padding:34px 40px;border-radius:24px;background:linear-gradient(120deg,#0879ed 0%,#0750c9 54%,#092d83 100%);color:#fff;box-shadow:0 16px 38px #0750c926}
+.admin-hero:before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(circle at 80% 30%,#53c5ff66,transparent 30%),repeating-linear-gradient(135deg,transparent 0 44px,#ffffff0b 45px 75px)}
+.admin-hero:after{content:"";position:absolute;z-index:-1;width:280px;height:280px;border:22px solid #ffcc24;border-radius:50%;right:-155px;bottom:-205px}
+.admin-hero-copy{position:relative;z-index:2;max-width:600px}
+.admin-hero-kicker{display:inline-flex;align-items:center;gap:9px;color:#d9efff;font-size:10px;font-weight:700;letter-spacing:2px}
+.admin-hero-kicker i{width:8px;height:8px;border-radius:50%;background:#ffda36;box-shadow:0 0 0 5px #ffda3633}
+.admin-hero h1{font-size:clamp(36px,5vw,58px);line-height:1;margin:15px 0 7px;color:#fff;font-weight:700;letter-spacing:1px}
+.admin-banner-label{display:inline-block;padding:5px 22px;margin:0 0 12px;border-radius:30px;background:#ffd329;color:#172b55;font-size:clamp(19px,2.3vw,27px);font-weight:700;letter-spacing:.5px}
+.admin-hero p{max-width:480px;color:#e4f2ff;font-size:14px;line-height:1.8;margin:0}
+.admin-hero-actions{display:flex;align-items:center;gap:15px;flex-wrap:wrap;margin-top:18px}
+.admin-hero-button{border:0;border-radius:10px;background:#fff;color:#0750b5;font-weight:700;padding:11px 16px;box-shadow:0 6px 16px #052a6b33}
+.admin-hero-note{font-size:9px;color:#d7eaff;letter-spacing:1px}
+.admin-hero-art{position:relative;height:210px;max-width:340px;width:100%;justify-self:end}
+.admin-banner-bag{position:absolute;right:125px;top:18px;width:142px;height:155px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:linear-gradient(145deg,#fff,#dceeff);color:#0750c9;font-size:48px;font-weight:800;clip-path:polygon(12% 17%,88% 17%,100% 100%,0 100%);filter:drop-shadow(0 16px 18px #001c5c55);transform:rotate(-7deg)}
+.admin-banner-bag:before{content:"";position:absolute;top:-15px;width:48px;height:40px;border:7px solid #fff;border-bottom:0;border-radius:28px 28px 0 0}
+.admin-banner-bag span{font-size:23px;color:#ef3340;line-height:1}
+.admin-banner-cart{position:absolute;right:5px;top:66px;font-size:90px;filter:drop-shadow(0 10px 10px #001c5c55);transform:rotate(-7deg)}
+.admin-banner-spark{position:absolute;color:#ffdc3e;font-size:32px}
+.spark-one{right:265px;top:5px}.spark-two{right:15px;top:8px;font-size:23px}
+@media(max-width:700px){.admin-hero{grid-template-columns:1fr;min-height:0;margin:16px 0 19px;padding:23px 20px 8px;border-radius:18px}.admin-hero h1{font-size:39px;margin:13px 0 7px}.admin-hero p{font-size:12px;line-height:1.7}.admin-hero-actions{gap:10px;margin-top:15px}.admin-hero-note{font-size:8px}.admin-hero-art{height:125px;width:100%;max-width:245px;margin:3px auto 0;justify-self:center}.admin-banner-bag{width:92px;height:103px;right:102px;top:8px;font-size:33px}.admin-banner-bag:before{width:33px;height:28px;border-width:5px}.admin-banner-bag span{font-size:16px}.admin-banner-cart{font-size:65px;right:17px;top:32px}.spark-one{right:180px;top:0}.spark-two{right:10px;top:0}}
