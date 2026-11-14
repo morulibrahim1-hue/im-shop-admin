@@ -106,6 +106,10 @@ document.getElementById('orderDrawer').addEventListener('click', e => { if (e.ta
 document.getElementById('checkout').addEventListener('submit', async e => {
   e.preventDefault(); if (!selectedOrder) return;
   const form=e.currentTarget, data=new FormData(form), qty=Number(data.get('quantity')), msg=document.getElementById('checkoutMsg'), btn=document.getElementById('submitOrder');
+  const zone=String(data.get('delivery_zone')||''), district=String(data.get('district')||'').trim().toLowerCase();
+  const isDhakaDistrict=['ঢাকা','dhaka'].includes(district);
+  if (!zone) { msg.textContent='ঢাকার ভিতরে নাকি ঢাকার বাইরে—নির্বাচন করুন।'; return; }
+  if ((zone==='ঢাকার ভিতরে' && !isDhakaDistrict) || (zone==='ঢাকার বাইরে' && isDhakaDistrict)) { msg.textContent='আপনার নির্বাচিত এলাকা ও জেলার নাম মিলছে না। সঠিকভাবে নির্বাচন করুন।'; return; }
   if (!Number.isInteger(qty) || qty < 1 || qty > selectedOrder.stock || qty > 20) { msg.textContent='সঠিক পরিমাণ দিন। স্টক: ' + selectedOrder.stock; return; }
   btn.disabled=true; btn.textContent='অর্ডার পাঠানো হচ্ছে…'; msg.textContent='';
   try {
