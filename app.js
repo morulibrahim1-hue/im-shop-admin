@@ -189,7 +189,7 @@
         client=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
         const {data:userData,error:authErr}=await client.auth.signUp({email:String(fd.get("email")).trim(),password:String(fd.get("password")),options:{data:{full_name:String(fd.get("full_name")).trim()}}});
         if(authErr)throw authErr;if(!userData.user)throw new Error("Auth user তৈরি হয়নি।");
-        const {error:profileErr}=await db.from("staff_profiles").insert({user_id:userData.user.id,full_name:String(fd.get("full_name")).trim(),role:String(fd.get("role")),is_active:true});
+        const {error:profileErr}=await db.from("staff_profiles").insert({id:userData.user.id,user_id:userData.user.id,full_name:String(fd.get("full_name")).trim(),role:String(fd.get("role")),is_active:true});
         if(profileErr)throw profileErr;
         msg.textContent="স্টাফ অ্যাকাউন্ট তৈরি হয়েছে। ইমেইল নিশ্চিতকরণ লাগতে পারে।";msg.className="message success";form.reset();await loadStaff();
       }catch(err){msg.textContent="স্টাফ যোগ হয়নি: "+err.message;msg.className="message error";}
