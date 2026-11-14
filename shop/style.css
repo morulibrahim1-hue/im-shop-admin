@@ -31,3 +31,11 @@ main{max-width:1100px;margin:35px auto;padding:0 16px}
 .cart-total{text-align:right;font-size:20px;margin-top:18px}
 footer{text-align:center;background:#111827;color:#ddd;padding:25px}
 @media(max-width:500px){.hero{padding:45px 22px}.products{grid-template-columns:repeat(2,minmax(0,1fr))}.product img{height:145px}.product-info{padding:10px}.product h3{font-size:15px}}
+
+/* Direct order flow */
+.drawer{position:fixed;inset:0;background:#0008;display:none;justify-content:flex-end;z-index:20}.drawer.open{display:flex}.order-panel{width:min(100%,520px);height:100%;overflow:auto;background:#fff;padding:20px}
+.order-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.order-head h2{margin:4px 0 12px}.close{border:0;border-radius:8px;padding:9px 13px;background:#edf0ed}
+.order-product{display:flex;gap:12px;align-items:center;padding:12px;background:#f2f6f2;border-radius:10px;margin:12px 0}.order-product img{width:65px;height:70px;object-fit:cover;border-radius:8px}.order-product b,.order-product span{display:block}.order-product span{font-size:12px;color:#667}
+.checkout label{display:block;font-size:13px;font-weight:600;margin:10px 0}.checkout input,.checkout textarea{display:block;width:100%;padding:11px;border:1px solid #d8ded8;border-radius:8px;margin-top:5px;font:inherit}
+.submit{width:100%;background:#173b2b;color:white;border:0;border-radius:9px;padding:13px;font-weight:700}.submit:disabled{opacity:.6}.delivery-note,.form-message{font-size:12px;color:#657267;line-height:1.6}.product button{margin-top:9px;font-weight:700}.product button:disabled{opacity:.45}.variant-select{width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;margin-top:8px}
+@media(max-width:500px){.order-panel{padding:15px}.products{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.product img{height:118px}}
