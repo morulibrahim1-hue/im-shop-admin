@@ -1,9 +1,17 @@
-name: Deploy I M SHOP customer website
+name: Deploy I M SHOP customer website and admin panel
 on:
   push:
     branches: [main]
     paths:
       - 'store.html'
+      - 'index.html'
+      - 'app.js'
+      - 'modules.js'
+      - 'config.js'
+      - 'styles.css'
+      - 'manifest.webmanifest'
+      - 'icon.svg'
+      - 'sw.js'
       - '.github/workflows/deploy-store.yml'
   workflow_dispatch:
 permissions:
