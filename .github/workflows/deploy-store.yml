@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - 'store.html'
+      - 'shop/**'
       - 'index.html'
       - 'app.js'
       - 'modules.js'
