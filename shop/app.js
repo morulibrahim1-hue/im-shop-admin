@@ -6,7 +6,8 @@ const client = createClient(
 );
 
 let allProducts = [];
-let cart = [];
+let allVariants = [];
+let selectedOrder = null;
 let activeCategory = "all";
 
 const productsBox = document.getElementById("products");
@@ -39,6 +40,8 @@ async function loadStore() {
   }
 
   allProducts = data || [];
+  const variantResult = await client.from('product_variants').select('id,product_id,size,color,price,stock_quantity,is_active').eq('is_active', true);
+  allVariants = variantResult.error ? [] : (variantResult.data || []);
   await loadCategories();
   renderProducts();
 }
@@ -73,88 +76,47 @@ async function loadCategories() {
 
 function renderProducts() {
   const term = searchBox.value.trim().toLowerCase();
-
-  const filtered = allProducts.filter(p => {
-    const matchesText = String(p.name || "").toLowerCase().includes(term);
-    const matchesCategory = activeCategory === "all" ||
-      String(p.category_id) === activeCategory;
-    return matchesText && matchesCategory;
-  });
-
-  if (!filtered.length) {
-    productsBox.innerHTML = '<p class="notice">এখন কোনো পণ্য পাওয়া যায়নি।</p>';
-    return;
-  }
-
-  productsBox.innerHTML = filtered.map(p => `
-    <article class="product">
-      ${p.image_url
-        ? `<img src="${escapeHTML(p.image_url)}" alt="${escapeHTML(p.name)}" loading="lazy">`
-        : '<div style="height:190px;background:#eee"></div>'}
-      <div class="product-info">
-        <h3>${escapeHTML(p.name)}</h3>
-        <div class="price">${money(p.price)}</div>
-        <div class="stock">${Number(p.stock_quantity || 0) > 0 ? "স্টকে আছে" : "স্টক শেষ"}</div>
-        <button data-add="${escapeHTML(p.id)}" ${Number(p.stock_quantity || 0) <= 0 ? "disabled" : ""}>কার্টে যোগ করুন</button>
-      </div>
-    </article>
-  `).join("");
-
-  productsBox.querySelectorAll("[data-add]").forEach(button => {
-    button.addEventListener("click", () => addToCart(button.dataset.add));
-  });
+  const filtered = allProducts.filter(p => String(p.name || '').toLowerCase().includes(term) && (activeCategory === 'all' || String(p.category_id) === activeCategory));
+  if (!filtered.length) { productsBox.innerHTML = '<p class="notice">এখন কোনো পণ্য পাওয়া যায়নি।</p>'; return; }
+  productsBox.innerHTML = filtered.map(p => {
+    const opts = allVariants.filter(v => String(v.product_id) === String(p.id));
+    const inStock = opts.length ? opts.some(v => Number(v.stock_quantity) > 0) : Number(p.stock_quantity || 0) > 0;
+    const variantSelect = opts.length ? '<select class="variant-select" id="variant-' + escapeHTML(p.id) + '"><option value="">সাইজ/ভ্যারিয়েন্ট বাছুন</option>' + opts.map(v => '<option value="' + escapeHTML(v.id) + '" ' + (Number(v.stock_quantity) < 1 ? 'disabled' : '') + '>' + escapeHTML([v.size,v.color].filter(Boolean).join(' / ') || 'ভ্যারিয়েন্ট') + ' — ' + money(v.price ?? p.price) + ' (স্টক ' + Number(v.stock_quantity || 0) + ')</option>').join('') + '</select>' : '';
+    return '<article class="product">' + (p.image_url ? '<img src="' + escapeHTML(p.image_url) + '" alt="' + escapeHTML(p.name) + '" loading="lazy">' : '<div style="height:145px;background:#eee"></div>') + '<div class="product-info"><h3>' + escapeHTML(p.name) + '</h3><div class="price">' + money(p.price) + '</div><div class="stock">' + (inStock ? 'স্টকে আছে' : 'স্টক শেষ') + '</div>' + variantSelect + '<button data-order="' + escapeHTML(p.id) + '" ' + (!inStock ? 'disabled' : '') + '>' + (inStock ? 'অর্ডার নাও' : 'স্টক শেষ') + '</button></div></article>';
+  }).join('');
+  productsBox.querySelectorAll('[data-order]').forEach(button => button.addEventListener('click', () => openDirectOrder(button.dataset.order)));
 }
-
-function addToCart(id) {
-  const product = allProducts.find(p => String(p.id) === String(id));
-  if (!product) return;
-
-  const existing = cart.find(item => String(item.id) === String(id));
-  if (existing) {
-    if (existing.quantity >= Number(product.stock_quantity || 0)) {
-      alert("স্টকের বেশি পণ্য যোগ করা যাবে না।");
-      return;
-    }
-    existing.quantity++;
-  } else {
-    cart.push({...product, quantity: 1});
-  }
-  renderCart();
+function openDirectOrder(id) {
+  const p = allProducts.find(x => String(x.id) === String(id)); if (!p) return;
+  const opts = allVariants.filter(v => String(v.product_id) === String(id));
+  const variantId = opts.length ? document.getElementById('variant-' + id)?.value : null;
+  if (opts.length && !variantId) { alert('অর্ডারের আগে সাইজ/ভ্যারিয়েন্ট বাছুন।'); return; }
+  const v = variantId ? opts.find(x => String(x.id) === String(variantId)) : null;
+  if (opts.length && !v) { alert('সঠিক ভ্যারিয়েন্ট বাছুন।'); return; }
+  const stock = Number(v ? v.stock_quantity : p.stock_quantity || 0); if (stock < 1) { alert('এই পণ্যটি স্টকে নেই।'); return; }
+  selectedOrder = {product_id:p.id, variant_id:v?.id || null, name:p.name, variant:v ? [v.size,v.color].filter(Boolean).join(' / ') : '', price:Number(v?.price ?? p.price), stock:stock};
+  const image = p.image_url ? '<img src="' + escapeHTML(p.image_url) + '" alt="">' : '';
+  document.getElementById('orderProduct').innerHTML = image + '<div><b>' + escapeHTML(p.name) + '</b><span>' + escapeHTML(selectedOrder.variant) + ' · ' + money(selectedOrder.price) + ' · স্টক ' + stock + '</span></div>';
+  const qty = document.getElementById('checkout').elements.quantity; qty.max = Math.min(stock,20); qty.value = 1;
+  document.getElementById('checkoutMsg').textContent = ''; const drawer=document.getElementById('orderDrawer'); drawer.classList.add('open'); drawer.setAttribute('aria-hidden','false');
 }
-
-function renderCart() {
-  const count = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const total = cart.reduce((sum, item) => sum + Number(item.price || 0) * item.quantity, 0);
-
-  document.getElementById("cartCount").textContent = count;
-  document.getElementById("cartTotal").textContent = money(total);
-
-  const box = document.getElementById("cartItems");
-  if (!cart.length) {
-    box.innerHTML = '<p class="notice">কার্টে এখনো কোনো পণ্য নেই।</p>';
-    return;
-  }
-
-  box.innerHTML = cart.map(item => `
-    <div class="cart-row">
-      <span>${escapeHTML(item.name)} × ${item.quantity}</span>
-      <span>${money(Number(item.price || 0) * item.quantity)}
-      <button data-remove="${escapeHTML(item.id)}">−</button></span>
-    </div>
-  `).join("");
-
-  box.querySelectorAll("[data-remove]").forEach(button => {
-    button.addEventListener("click", () => {
-      const item = cart.find(p => String(p.id) === button.dataset.remove);
-      if (item) {
-        item.quantity--;
-        if (item.quantity <= 0) cart = cart.filter(p => p !== item);
-        renderCart();
-      }
-    });
-  });
-}
-
+function closeOrder() { const drawer=document.getElementById('orderDrawer'); drawer.classList.remove('open'); drawer.setAttribute('aria-hidden','true'); }
+document.getElementById('closeOrder').addEventListener('click', closeOrder);
+document.getElementById('orderDrawer').addEventListener('click', e => { if (e.target.id === 'orderDrawer') closeOrder(); });
+document.getElementById('checkout').addEventListener('submit', async e => {
+  e.preventDefault(); if (!selectedOrder) return;
+  const form=e.currentTarget, data=new FormData(form), qty=Number(data.get('quantity')), msg=document.getElementById('checkoutMsg'), btn=document.getElementById('submitOrder');
+  if (!Number.isInteger(qty) || qty < 1 || qty > selectedOrder.stock || qty > 20) { msg.textContent='সঠিক পরিমাণ দিন। স্টক: ' + selectedOrder.stock; return; }
+  btn.disabled=true; btn.textContent='অর্ডার পাঠানো হচ্ছে…'; msg.textContent='';
+  try {
+    const result=await client.rpc('create_public_order',{p_customer_name:String(data.get('name')).trim(),p_customer_phone:String(data.get('phone')).trim(),p_district:String(data.get('district')).trim(),p_thana:String(data.get('thana')).trim(),p_address:String(data.get('address')).trim(),p_delivery_area:String(data.get('area')||'').trim(),p_items:[{product_id:selectedOrder.product_id,variant_id:selectedOrder.variant_id,quantity:qty}],p_notes:String(data.get('notes')||'').trim()});
+    if(result.error) throw result.error; const order=result.data?.order || result.data;
+    if(!order?.order_number) throw new Error('অর্ডার নম্বর পাওয়া যায়নি।');
+    msg.textContent='অর্ডার সফল! নম্বর: '+order.order_number+' · পণ্যের মূল্য: '+money(order.subtotal)+' · ডেলিভারি: '+money(order.delivery_fee)+' · মোট: '+money(order.total);
+    form.reset(); selectedOrder=null;
+  } catch(err) { msg.textContent='অর্ডার করা যায়নি: '+(err.message||'সংযোগ সমস্যা'); }
+  finally { btn.disabled=false; btn.textContent='অর্ডার কনফার্ম করুন'; }
+});
 searchBox.addEventListener("input", renderProducts);
 loadStore();
 
