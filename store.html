@@ -95,7 +95,7 @@ function renderPaymentMethods(){
    $("paymentAccount").innerHTML='<div style="font-size:17px;font-weight:700;line-height:1.6">ক্যাশ অন ডেলিভারি — পণ্য হাতে পেয়ে মূল্য পরিশোধ করুন</div>';
   }else{
    const account=String(row?.account_number||"");
-   $("paymentAccount").innerHTML='<div style="font-size:15px;font-weight:700;margin-bottom:7px">'+names[key]+' পেমেন্ট নম্বর</div><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><strong style="font-size:24px;letter-spacing:1.2px;line-height:1.4;color:#111;user-select:all">'+esc(account)+'</strong><button type="button" id="copyPaymentNumber" style="font-size:15px;font-weight:700;padding:10px 14px;border:0;border-radius:9px;background:#087f4f;color:white">নম্বর কপি করুন</button></div><div id="copyPaymentFeedback" style="font-size:13px;margin-top:7px">এই নম্বরে টাকা পাঠান। তারপর Transaction ID দিন।</div>';
+   $("paymentAccount").innerHTML='<div style="font-size:15px;font-weight:700;margin-bottom:7px">'+names[key]+' পেমেন্ট নম্বর</div><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><strong style="font-size:30px;font-weight:800;letter-spacing:1.5px;line-height:1.5;color:#111;user-select:all;display:inline-block">'+esc(account)+'</strong><button type="button" id="copyPaymentNumber" style="font-size:15px;font-weight:700;padding:10px 14px;border:0;border-radius:9px;background:#087f4f;color:white">নম্বর কপি করুন</button></div><div id="copyPaymentFeedback" style="font-size:13px;margin-top:7px">এই নম্বরে টাকা পাঠান। তারপর Transaction ID দিন।</div>';
    $("copyPaymentNumber").onclick=async()=>{
     const feedback=$("copyPaymentFeedback");
     try{
