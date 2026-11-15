@@ -91,7 +91,20 @@ function renderPaymentMethods(){
  function update(){
   const key=select.value,row=paymentMethods.find(x=>x.method_key===key);
   const names={bkash:"বিকাশ",nagad:"নগদ",rocket:"রকেট"};
-  $("paymentAccount").textContent=key==="cash_on_delivery"?"ক্যাশ অন ডেলিভারি — পণ্য হাতে পেয়ে মূল্য পরিশোধ করুন":(names[key]+" নম্বর: "+(row?.account_number||"অ্যাকাউন্ট নম্বর পাওয়া যায়নি")+" — এই নম্বরে টাকা পাঠান");
+  if(key==="cash_on_delivery"){
+   $("paymentAccount").innerHTML='<div style="font-size:17px;font-weight:700;line-height:1.6">ক্যাশ অন ডেলিভারি — পণ্য হাতে পেয়ে মূল্য পরিশোধ করুন</div>';
+  }else{
+   const account=String(row?.account_number||"");
+   $("paymentAccount").innerHTML='<div style="font-size:15px;font-weight:700;margin-bottom:7px">'+names[key]+' পেমেন্ট নম্বর</div><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><strong style="font-size:24px;letter-spacing:1.2px;line-height:1.4;color:#111;user-select:all">'+esc(account)+'</strong><button type="button" id="copyPaymentNumber" style="font-size:15px;font-weight:700;padding:10px 14px;border:0;border-radius:9px;background:#087f4f;color:white">নম্বর কপি করুন</button></div><div id="copyPaymentFeedback" style="font-size:13px;margin-top:7px">এই নম্বরে টাকা পাঠান। তারপর Transaction ID দিন।</div>';
+   $("copyPaymentNumber").onclick=async()=>{
+    const feedback=$("copyPaymentFeedback");
+    try{
+     if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(account);}
+     else{const ta=document.createElement("textarea");ta.value=account;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();const ok=document.execCommand("copy");ta.remove();if(!ok)throw new Error("copy failed");}
+     feedback.textContent="নম্বর কপি হয়েছে। এখন পেমেন্ট অ্যাপে পেস্ট করুন।";
+    }catch(err){feedback.textContent="কপি করা যায়নি। নম্বরটি চেপে ধরে কপি করুন।";}
+   };
+  }
   $("transactionLabel").style.display=key==="cash_on_delivery"?"none":"block";
   $("transactionId").required=key!=="cash_on_delivery";
   if(key==="cash_on_delivery")$("transactionId").value="";
