@@ -48,8 +48,12 @@
 <label>ডেলিভারি এলাকা<input name="area" placeholder="এলাকা/ইউনিয়ন"></label>
 <label>সম্পূর্ণ ঠিকানা *<textarea name="address" required rows="3" autocomplete="street-address"></textarea></label>
 <label>পরিমাণ *<input name="quantity" type="number" min="1" max="20" value="1" required></label>
+<label>পেমেন্ট পদ্ধতি *<select name="payment_method" id="paymentMethod" required><option value="bkash">১. বিকাশ</option><option value="nagad">২. নগদ</option><option value="rocket">৩. রকেট</option><option value="cash_on_delivery">৪. ক্যাশ অন ডেলিভারি</option></select></label>
+<div id="paymentAccount" class="muted" style="padding:10px;background:#f3f7f3;border-radius:9px">বিকাশ নম্বর: 01947742280</div>
+<label>এখন কত টাকা পেমেন্ট করছেন? (৳) *<input name="paid_amount" id="paidAmount" type="number" min="0" step="0.01" value="0" required></label>
+<label id="transactionLabel">Transaction ID *<input name="transaction_id" id="transactionId" maxlength="120" placeholder="লেনদেনের TrxID"></label>
 <label>অতিরিক্ত তথ্য<textarea name="notes" rows="2"></textarea></label>
-<p class="muted">পেমেন্ট: ক্যাশ অন ডেলিভারি। ঢাকা ৳৭০, ঢাকার বাইরে ৳১৩০।</p>
+<p class="muted">ঢাকা ৳৭০, ঢাকার বাইরে ৳১৩০ ডেলিভারি চার্জ যোগ হবে। আপনার দেওয়া পেমেন্ট মোট বিল থেকে বাদ দিয়ে বাকি টাকা বা অতিরিক্ত টাকা হিসাব করা হবে। অনলাইন পেমেন্ট ম্যানুয়ালি যাচাই করা হবে।</p>
 <button class="submit" id="submitOrder" type="submit">অর্ডার কনফার্ম করুন</button><p id="checkoutMsg" class="muted" aria-live="polite"></p></form></div></div><div class="toast" id="toast"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -58,23 +62,41 @@ const SB_KEY="sb_publishable_PLhvJW8yWedj4K6rsl0ctA_1_8BPUI5";
 const db=window.supabase.createClient(SB_URL,SB_KEY);
 const $=id=>document.getElementById(id), money=n=>"৳"+Number(n||0).toLocaleString("bn-BD",{maximumFractionDigits:2});
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let products=[],categories=[],variants=[],selectedOrder=null,activeCat="all";
+let products=[],categories=[],variants=[],paymentMethods=[],selectedOrder=null,activeCat="all";
 function toast(t){$("toast").textContent=t;$("toast").style.display="block";setTimeout(()=>$("toast").style.display="none",2600)}
 async function load(){
  try{
-  const [p,c,v,im]=await Promise.all([
+  const [p,c,v,im,pm]=await Promise.all([
    db.from("products").select("id,name,description,price,stock_quantity,image_url,category_id").eq("is_active",true).order("created_at",{ascending:false}),
    db.from("categories").select("id,name").eq("is_active",true).order("sort_order"),
    db.from("product_variants").select("id,product_id,size,color,price,stock_quantity").eq("is_active",true),
-   db.from("product_images").select("product_id,image_url,sort_order").order("sort_order")
+   db.from("product_images").select("product_id,image_url,sort_order").order("sort_order"),
+   db.from("admin_app_payment_methods").select("method_key,display_name,is_enabled,account_number").in("method_key",["bkash","nagad","rocket","cash_on_delivery"])
   ]);
   if(p.error)throw p.error;if(c.error)throw c.error;
-  products=p.data||[];categories=c.data||[];variants=v.error?[]:(v.data||[]);
+  products=p.data||[];categories=c.data||[];variants=v.error?[]:(v.data||[]);paymentMethods=pm.error?[]:(pm.data||[]);
   const images=im.error?[]:(im.data||[]);
   products.forEach(x=>{x.gallery=images.filter(i=>i.product_id===x.id);});
   $("status").style.display=products.length?"none":"block";$("status").textContent=products.length?"":"এখনো কোনো সক্রিয় পণ্য প্রকাশ করা হয়নি।";
-  renderFilters();renderProducts();
+  renderFilters();renderProducts();renderPaymentMethods();
  }catch(e){$("status").textContent="দোকানের পণ্য লোড করা যায়নি: "+e.message;}
+}
+function renderPaymentMethods(){
+ const order=["bkash","nagad","rocket","cash_on_delivery"],labels={bkash:"১. বিকাশ",nagad:"২. নগদ",rocket:"৩. রকেট",cash_on_delivery:"৪. ক্যাশ অন ডেলিভারি"};
+ const enabled=order.filter(k=>paymentMethods.some(x=>x.method_key===k&&x.is_enabled));
+ const select=$("paymentMethod");
+ select.innerHTML=enabled.map(k=>'<option value="'+k+'">'+labels[k]+'</option>').join("");
+ if(!enabled.length){select.innerHTML='<option value="">কোনো পেমেন্ট পদ্ধতি চালু নেই</option>'; $("submitOrder").disabled=true;return;}
+ $("submitOrder").disabled=false;
+ function update(){
+  const key=select.value,row=paymentMethods.find(x=>x.method_key===key);
+  const names={bkash:"বিকাশ",nagad:"নগদ",rocket:"রকেট"};
+  $("paymentAccount").textContent=key==="cash_on_delivery"?"ক্যাশ অন ডেলিভারি — পণ্য হাতে পেয়ে মূল্য পরিশোধ করুন":(names[key]+" নম্বর: "+(row?.account_number||"অ্যাকাউন্ট নম্বর পাওয়া যায়নি")+" — এই নম্বরে টাকা পাঠান");
+  $("transactionLabel").style.display=key==="cash_on_delivery"?"none":"block";
+  $("transactionId").required=key!=="cash_on_delivery";
+  if(key==="cash_on_delivery")$("transactionId").value="";
+ }
+ select.onchange=update;update();
 }
 function renderFilters(){
  $("filters").innerHTML='<button class="filter '+(activeCat==="all"?"active":"")+'" data-cat="all">সব পণ্য</button>'+categories.map(c=>'<button class="filter '+(activeCat===c.id?"active":"")+'" data-cat="'+c.id+'">'+esc(c.name)+'</button>').join("");
@@ -109,18 +131,20 @@ $("closeOrder").onclick=()=>{$("drawer").classList.remove("open");};
 $("drawer").addEventListener("click",e=>{if(e.target===$("drawer"))$("drawer").classList.remove("open");});
 $("checkout").onsubmit=async e=>{
  e.preventDefault();if(!selectedOrder){toast("আগে পণ্য নির্বাচন করুন");return;}
- const f=new FormData(e.currentTarget),qty=Number(f.get("quantity"));
+ const f=new FormData(e.currentTarget),qty=Number(f.get("quantity")),method=String(f.get("payment_method")||""),paid=Number(f.get("paid_amount")),trx=String(f.get("transaction_id")||"").trim();
  if(!Number.isInteger(qty)||qty<1||qty>selectedOrder.stock||qty>20){$("checkoutMsg").textContent="সঠিক পরিমাণ দিন। স্টক: "+selectedOrder.stock;return;}
+ if(!Number.isFinite(paid)||paid<0){$("checkoutMsg").textContent="পেমেন্টের পরিমাণ সঠিক নয়।";return;}
+ if(method!=="cash_on_delivery"&&(paid<=0||!trx)){$("checkoutMsg").textContent="বিকাশ/নগদ/রকেট পেমেন্টে টাকার পরিমাণ ও Transaction ID দিতে হবে।";return;}
  const btn=$("submitOrder");btn.disabled=true;btn.textContent="অর্ডার পাঠানো হচ্ছে…";$("checkoutMsg").textContent="";
  try{
-  const {data,error}=await db.rpc("create_public_order",{p_customer_name:String(f.get("name")).trim(),p_customer_phone:String(f.get("phone")).trim(),p_district:String(f.get("district")).trim(),p_thana:String(f.get("thana")).trim(),p_address:String(f.get("address")).trim(),p_delivery_area:String(f.get("area")||"").trim(),p_items:[{product_id:selectedOrder.product_id,variant_id:selectedOrder.variant_id,quantity:qty}],p_notes:String(f.get("notes")||"").trim()});
+  const {data,error}=await db.rpc("create_public_order_with_payment",{p_customer_name:String(f.get("name")).trim(),p_customer_phone:String(f.get("phone")).trim(),p_district:String(f.get("district")).trim(),p_thana:String(f.get("thana")).trim(),p_address:String(f.get("address")).trim(),p_delivery_area:String(f.get("area")||"").trim(),p_items:[{product_id:selectedOrder.product_id,variant_id:selectedOrder.variant_id,quantity:qty}],p_notes:String(f.get("notes")||"").trim(),p_payment_method:method,p_paid_amount:paid,p_transaction_id:trx||null});
   if(error)throw error;
-  $("checkoutMsg").textContent="অর্ডার সফল! অর্ডার নম্বর: "+data.order_number+" | পণ্যের মূল্য: "+money(data.subtotal)+" | ডেলিভারি: "+money(data.delivery_fee)+" | মোট: "+money(data.total);
-  $("checkout").reset();selectedOrder=null;toast("আপনার অর্ডার গ্রহণ করা হয়েছে");
-  await load();
+  const total=Number(data.total||0),balance=Number(data.balance_due||0),extra=Number(data.overpayment||0);
+  $("checkoutMsg").textContent="অর্ডার সফল! নম্বর: "+data.order_number+" | মোট: "+money(total)+" | জমা: "+money(data.paid_amount)+" | বাকি: "+money(balance)+(extra>0?" | অতিরিক্ত জমা: "+money(extra):"")+(trx?" | TrxID: "+trx:"");
+  $("checkout").reset();selectedOrder=null;toast("আপনার অর্ডার গ্রহণ করা হয়েছে");await load();
  }catch(err){$("checkoutMsg").textContent="অর্ডার করা যায়নি: "+err.message;}
- finally{btn.disabled=false;btn.textContent="অর্ডার কনফার্ম করুন";}
-};
+ finally{btn.disabled=false;btn.textContent="অর্ডার কনফার্ম করুন";renderPaymentMethods();}
+}
 load();
 </script>
 </body></html>
