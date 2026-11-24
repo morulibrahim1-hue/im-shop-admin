@@ -81,6 +81,7 @@
     if (error) return;
     $("pCategory").innerHTML = '<option value="">ক্যাটাগরি নির্বাচন করুন</option>' +
       (data||[]).map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
+    if($("bulkProductRows")?.children.length) { const opts=(data||[]).map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join(""); $("bulkProductRows").querySelectorAll('select[name="category"]').forEach(sel=>{const old=sel.value;sel.innerHTML='<option value="">ক্যাটাগরি নির্বাচন করুন</option>'+opts;sel.value=old;}); }
   }
   async function loadProducts() {
     const {data,error} = await db.from("products").select("id,name,price,stock_quantity,is_active,created_at").order("created_at",{ascending:false}).limit(100);
