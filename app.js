@@ -32,9 +32,9 @@
     $("loginView").classList.add("hidden"); $("appView").classList.remove("hidden");
     $("adminEmail").textContent = user.email || currentRole;
     document.querySelectorAll(".nav-item").forEach(b => {
-      const page=b.dataset.page, module=page==="addProduct"?"products":page;
+      const page=b.dataset.page, module=(page==="addProduct"||page==="bulkProducts")?"products":page;
       const perm=rolePermissions[module];
-      b.hidden = currentRole!=="admin" && (!perm?.can_view || (page==="addProduct" && !perm?.can_create));
+      b.hidden = currentRole!=="admin" && (!perm?.can_view || ((page==="addProduct"||page==="bulkProducts") && !perm?.can_create));
     });
     navigate(currentRole==="admin"?"dashboard":"orders"); refreshAll();
   }
@@ -52,12 +52,12 @@
   function navigate(page) {
     if(currentRole!=="admin"){
       const module=page==="addProduct"?"products":page,perm=rolePermissions[module];
-      if(!perm?.can_view || (page==="addProduct"&&!perm.can_create)){toast("এই মেনু ব্যবহারের অনুমতি নেই।");return;}
+      if(!perm?.can_view || ((page==="addProduct"||page==="bulkProducts")&&!perm.can_create)){toast("এই মেনু ব্যবহারের অনুমতি নেই।");return;}
     }
     document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
     $("page-" + page).classList.remove("hidden");
     document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.page === page));
-    const titles = {dashboard:"ড্যাশবোর্ড",products:"পণ্যসমূহ",addProduct:"পণ্য যোগ করুন",orders:"অর্ডারসমূহ",staff:"স্টাফ ম্যানেজমেন্ট",settings:"সেটিংস",categories:"ক্যাটাগরি",inventory:"স্টক ও ইনভেন্টরি",customers:"কাস্টমার",reports:"বিক্রয় ও রিপোর্ট",payments:"পেমেন্ট",delivery:"ডেলিভারি",marketing:"কুপন ও প্রচার",notifications:"নোটিফিকেশন",chat:"ইউজার চ্যাট",security:"নিরাপত্তা"};
+    const titles = {dashboard:"ড্যাশবোর্ড",products:"পণ্যসমূহ",addProduct:"পণ্য যোগ করুন",bulkProducts:"একসাথে ২০টি পণ্য যোগ",orders:"অর্ডারসমূহ",staff:"স্টাফ ম্যানেজমেন্ট",settings:"সেটিংস",categories:"ক্যাটাগরি",inventory:"স্টক ও ইনভেন্টরি",customers:"কাস্টমার",reports:"বিক্রয় ও রিপোর্ট",payments:"পেমেন্ট",delivery:"ডেলিভারি",marketing:"কুপন ও প্রচার",notifications:"নোটিফিকেশন",chat:"ইউজার চ্যাট",security:"নিরাপত্তা"};
     $("pageTitle").textContent = titles[page] || "ড্যাশবোর্ড";
     window.dispatchEvent(new CustomEvent("imshop:page", {detail:{page}}));
   }
@@ -205,6 +205,39 @@
     box.querySelectorAll(".staff-role").forEach(el=>el.onchange=async()=>{if(el.dataset.user===currentUser.id&&el.value!=="admin"){toast("নিজের ভূমিকা পরিবর্তন করা যাবে না।");return loadStaff()}const {error:e}=await db.from("staff_profiles").update({role:el.value}).eq("user_id",el.dataset.user);if(e)toast(e.message);await loadStaff()});
     box.querySelectorAll(".staff-status").forEach(el=>el.onchange=async()=>{if(el.dataset.user===currentUser.id&&!el.checked){toast("নিজের অ্যাকাউন্ট বন্ধ করা যাবে না।");return loadStaff()}const {error:e}=await db.from("staff_profiles").update({is_active:el.checked}).eq("user_id",el.dataset.user);if(e)toast(e.message);await loadStaff()});
   }
+  function setupBulkProducts() {
+    const rows=$("bulkProductRows"), count=$("bulkProductCount"), form=$("bulkProductForm");
+    if(!rows||!form||rows.dataset.ready)return; rows.dataset.ready="1";
+    const cats=()=>Array.from($("pCategory").options).filter(o=>o.value).map(o=>'<option value="'+o.value+'">'+escapeHtml(o.textContent)+'</option>').join("");
+    function addRow(){
+      if(rows.children.length>=20)return;
+      const n=rows.children.length+1,wrap=document.createElement("div");wrap.className="bulk-product-row";
+      wrap.style.cssText="border:1px solid #dce3ee;border-radius:12px;padding:12px;margin:10px 0";
+      wrap.innerHTML='<b>পণ্য '+n+'</b><div class="two-col"><label>পণ্যের নাম *<input name="name" required maxlength="180"></label><label>দাম (৳) *<input name="price" type="number" min="0" step="0.01" required></label></div><div class="two-col"><label>স্টক *<input name="stock" type="number" min="0" step="1" value="0" required></label><label>ক্যাটাগরি<select name="category"><option value="">ক্যাটাগরি নির্বাচন করুন</option>'+cats()+'</select></label></div><label>SKU (ঐচ্ছিক)<input name="sku" maxlength="80"></label><label>বিবরণ (ঐচ্ছিক)<textarea name="description" rows="2"></textarea></label><label>ছবি (ঐচ্ছিক, ৫ MB)<input name="image" type="file" accept="image/jpeg,image/png,image/webp"></label><button type="button" class="secondary remove-bulk-row">এই সারি বাদ দিন</button>';
+      rows.appendChild(wrap);count.textContent=rows.children.length+" / ২০টি";
+      wrap.querySelector(".remove-bulk-row").onclick=()=>{wrap.remove();Array.from(rows.children).forEach((el,i)=>el.querySelector("b").textContent="পণ্য "+(i+1));count.textContent=rows.children.length+" / ২০টি";};
+    }
+    addRow();$("addBulkProductRow").onclick=addRow;
+    form.onsubmit=async ev=>{
+      ev.preventDefault();const btn=form.querySelector('button[type="submit"]'),items=Array.from(rows.children);
+      if(!items.length)return;
+      btn.disabled=true;let ok=0,failed=[];
+      $("bulkProductMessage").textContent="পণ্যগুলো সংরক্ষণ হচ্ছে…";
+      try{
+        for(let i=0;i<items.length;i++){
+          const row=items[i],v=name=>row.querySelector('[name="'+name+'"]').value.trim(),file=row.querySelector('[name="image"]').files[0];let imageUrl=null;
+          if(file){if(file.size>5*1024*1024)throw new Error("পণ্য "+(i+1)+": ছবির সাইজ ৫ MB-এর বেশি।");if(!["image/jpeg","image/png","image/webp"].includes(file.type))throw new Error("পণ্য "+(i+1)+": JPG/PNG/WebP ছবি দিন।");const ext=file.name.split(".").pop().toLowerCase(),path=crypto.randomUUID()+"."+ext;const up=await db.storage.from("products").upload(path,file,{contentType:file.type,upsert:false});if(up.error)throw up.error;imageUrl=db.storage.from("products").getPublicUrl(path).data.publicUrl;}
+          const {error}=await db.rpc("admin_add_product",{p_name:v("name"),p_description:v("description")||null,p_category_id:v("category")||null,p_price:Number(v("price")),p_stock_quantity:Number(v("stock")),p_image_url:imageUrl,p_sku:v("sku")||null});
+          if(error)failed.push("পণ্য "+(i+1)+" ("+v("name")+"): "+error.message);else ok++;
+        }
+        $("bulkProductMessage").textContent=ok+"টি পণ্য যোগ হয়েছে।"+(failed.length?" ব্যর্থ: "+failed.join(" | "):"");
+        $("bulkProductMessage").className="message "+(failed.length?"error":"success");
+        if(ok===items.length){rows.innerHTML="";addRow();}
+        await Promise.all([loadProducts(),loadDashboard()]);
+      }catch(err){$("bulkProductMessage").textContent="সমস্যা: "+err.message;$("bulkProductMessage").className="message error";}
+      finally{btn.disabled=false;}
+    };
+  }
   async function addProduct(e) {
     e.preventDefault(); const btn = $("productForm").querySelector("button[type=submit]"); btn.disabled=true;
     message("productMessage","পণ্য সংরক্ষণ হচ্ছে…");
@@ -258,6 +291,8 @@
   $("sideNav").addEventListener("click",e=>{const b=e.target.closest("[data-page]");if(b)navigate(b.dataset.page);});
   document.addEventListener("click",e=>{const b=e.target.closest("[data-goto]");if(b)navigate(b.dataset.goto);});
   $("productForm").addEventListener("submit",addProduct);
+  $("addBulkProductRow")?.addEventListener("click",()=>{});
+  setupBulkProducts();
   $("refreshOrders").addEventListener("click",loadOrders);
   $("refreshStaff").addEventListener("click",loadStaff);
   $("pImage").addEventListener("change",()=>{const f=$("pImage").files[0], box=$("imagePreview");if(!f){box.classList.add("hidden");return;}box.innerHTML=`<img alt="ছবির প্রিভিউ" src="${URL.createObjectURL(f)}">`;box.classList.remove("hidden");});
