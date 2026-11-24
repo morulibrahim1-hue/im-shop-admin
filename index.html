@@ -9,7 +9,7 @@
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
   <title>I M SHOP Admin · Update 2026.11.02</title>
-</head>
+<style id="multi-image-preview-style">.image-preview{display:flex;flex-wrap:wrap;gap:10px}.multi-image-preview{margin:0;width:calc(20% - 8px);min-width:90px}.multi-image-preview img{width:100%;height:90px;object-fit:cover;border-radius:8px}.multi-image-preview figcaption{font-size:11px;overflow-wrap:anywhere}@media(max-width:500px){.multi-image-preview{width:calc(33.333% - 7px)}}</style></head>
 <body>
   <div id="loginView" class="login-wrap">
     <form id="loginForm" class="login-card">
@@ -110,7 +110,7 @@
             <div class="two-col"><label>দাম (৳) *<input id="pPrice" type="number" min="0" step="0.01" required></label><label>স্টক *<input id="pStock" type="number" min="0" step="1" value="0" required></label></div>
             <label>SKU (ঐচ্ছিক)<input id="pSku" maxlength="80" placeholder="পণ্যের কোড"></label>
             <label>বিবরণ<textarea id="pDescription" rows="4" placeholder="পণ্যের বিস্তারিত"></textarea></label>
-            <label>পণ্যের ছবি (JPG/PNG/WebP, সর্বোচ্চ ৫ MB)<input id="pImage" type="file" accept="image/jpeg,image/png,image/webp"></label>
+            <label>পণ্যের ছবি (JPG/PNG/WebP, প্রতি ছবি সর্বোচ্চ ৫ MB; একবারে সর্বোচ্চ ২০টি)<input id="pImage" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><p class="muted">এক পণ্যের সর্বোচ্চ ২০টি ছবি একসঙ্গে নির্বাচন করুন। প্রথম ছবিটি প্রধান ছবি হবে।</p>
             <div id="imagePreview" class="image-preview hidden"></div>
             <button class="primary" type="submit">পণ্য সংরক্ষণ করুন</button><p id="productMessage" class="message" aria-live="polite"></p>
           </form>
