@@ -85,6 +85,15 @@ function renderProducts() {
     const details = '<div class="product-details" id="details-' + escapeHTML(p.id) + '" hidden><p>' + (p.description ? escapeHTML(p.description).replace(/\\n/g,'<br>') : 'এই পণ্যের বিস্তারিত বিবরণ এখনো যোগ করা হয়নি।') + '</p><p><b>দাম:</b> ' + money(p.price) + ' · <b>স্টক:</b> ' + Number(p.stock_quantity || 0) + '</p>' + (opts.length ? '<p><b>সাইজ/কালার ও আলাদা দাম:</b></p><ul>' + opts.map(v => '<li>' + escapeHTML([v.size,v.color].filter(Boolean).join(' / ') || 'ভ্যারিয়েন্ট') + ' — ' + money(v.price ?? p.price) + ' · স্টক ' + Number(v.stock_quantity || 0) + '</li>').join('') + '</ul>' : '') + '</div>';
     return '<article class="product">' + (p.image_url ? '<img src="' + escapeHTML(p.image_url) + '" alt="' + escapeHTML(p.name) + '" loading="lazy">' : '<div style="height:145px;background:#eee"></div>') + '<div class="product-info"><h3>' + escapeHTML(p.name) + '</h3><div class="price">' + money(p.price) + '</div><div class="stock">' + (inStock ? 'স্টকে আছে' : 'স্টক শেষ') + '</div><button type="button" class="details-toggle" data-details="' + escapeHTML(p.id) + '">বিস্তারিত দেখুন</button>' + details + variantSelect + '<button data-order="' + escapeHTML(p.id) + '" ' + (!inStock || opts.length ? 'disabled' : '') + '>' + (inStock ? (opts.length ? 'আগে সাইজ বাছুন' : 'অর্ডার নাও') : 'স্টক শেষ') + '</button></div></article>';
   }).join('');
+  // Open a focused product detail view when the customer taps its photo or title.
+  productsBox.querySelectorAll('.product img, .product-info h3').forEach(target => {
+    target.style.cursor = 'pointer';
+    target.setAttribute('role', 'button');
+    target.setAttribute('tabindex', '0');
+    const open = () => openProductDetails(target.closest('.product').querySelector('[data-order]').dataset.order);
+    target.addEventListener('click', open);
+    target.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
+  });
   productsBox.querySelectorAll('.details-toggle').forEach(button => button.addEventListener('click', () => {
     const panel = document.getElementById('details-' + button.dataset.details);
     const opening = panel.hidden;
@@ -98,6 +107,26 @@ function renderProducts() {
     button.textContent = button.disabled ? 'আগে সাইজ বাছুন' : 'অর্ডার নাও';
   }));
   productsBox.querySelectorAll('[data-order]').forEach(button => button.addEventListener('click', () => openDirectOrder(button.dataset.order)));
+}
+function openProductDetails(id) {
+  const p = allProducts.find(x => String(x.id) === String(id));
+  if (!p) return;
+  const opts = allVariants.filter(v => String(v.product_id) === String(id));
+  let modal = document.getElementById('imProductDetailModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'imProductDetailModal';
+    modal.innerHTML = '<div class="im-detail-backdrop" data-detail-close></div><section class="im-detail-sheet" role="dialog" aria-modal="true" aria-label="পণ্যের বিস্তারিত"><button class="im-detail-close" type="button" data-detail-close aria-label="বন্ধ">×</button><div id="imDetailContent"></div></section>';
+    document.body.appendChild(modal);
+    const style = document.createElement('style');
+    style.textContent = '#imProductDetailModal{position:fixed;inset:0;z-index:1000;display:none}#imProductDetailModal.open{display:block}.im-detail-backdrop{position:absolute;inset:0;background:#0009}.im-detail-sheet{position:absolute;inset:3vh 0 0;background:#fff;border-radius:20px 20px 0 0;overflow:auto;padding:18px 16px 30px;max-width:650px;margin:auto}.im-detail-close{position:sticky;top:0;float:right;border:0;border-radius:50%;width:40px;height:40px;font-size:28px;background:#f1f1f1;z-index:2}.im-detail-image{display:block;width:100%;height:min(48vh,420px);object-fit:contain;background:#f7f7f7;border-radius:12px;margin:8px 0 16px}.im-detail-title{font-size:22px;margin:8px 0}.im-detail-description{white-space:pre-wrap;line-height:1.65;color:#333}.im-detail-variants{padding-left:22px;line-height:1.8}';
+    document.head.appendChild(style);
+    modal.querySelectorAll('[data-detail-close]').forEach(el => el.addEventListener('click', () => modal.classList.remove('open')));
+  }
+  const image = p.image_url ? '<img class="im-detail-image" src="' + escapeHTML(p.image_url) + '" alt="' + escapeHTML(p.name) + '">' : '';
+  const variants = opts.length ? '<h3>সাইজ ও কালার</h3><ul class="im-detail-variants">' + opts.map(v => '<li>' + escapeHTML([v.size,v.color].filter(Boolean).join(' / ') || 'ভ্যারিয়েন্ট') + ' — ' + money(v.price ?? p.price) + ' · ' + (Number(v.stock_quantity)>0?'স্টকে আছে':'স্টক শেষ') + '</li>').join('') + '</ul>' : '';
+  document.getElementById('imDetailContent').innerHTML = image + '<h2 class="im-detail-title">' + escapeHTML(p.name) + '</h2><p><b>' + money(p.price) + '</b> · ' + (Number(p.stock_quantity)>0?'স্টকে আছে':'স্টক শেষ') + '</p><div class="im-detail-description">' + (p.description ? escapeHTML(p.description) : 'এই পণ্যের বিস্তারিত বিবরণ এখনো যোগ করা হয়নি।') + '</div>' + variants;
+  modal.classList.add('open');
 }
 function openDirectOrder(id) {
   const p = allProducts.find(x => String(x.id) === String(id)); if (!p) return;
