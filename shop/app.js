@@ -14,6 +14,31 @@ const productsBox = document.getElementById("products");
 const searchBox = document.getElementById("search");
 const categoriesBox = document.getElementById("categories");
 
+// Persistent customer back button: close the topmost shop panel first, then navigate back.
+(() => {
+  const back = document.getElementById('imGlobalBack');
+  if (!back) return;
+  const style = document.createElement('style');
+  style.textContent = '#imGlobalBack{position:fixed;top:10px;left:10px;z-index:900;border:0;border-radius:22px;background:#172033;color:#fff;padding:10px 14px;font-weight:700;font-size:14px;box-shadow:0 3px 12px #0003;cursor:pointer}body{scroll-padding-top:60px}';
+  document.head.appendChild(style);
+  back.addEventListener('click', () => {
+    const detail = document.getElementById('imProductDetailModal');
+    if (detail?.classList.contains('open')) { detail.classList.remove('open'); return; }
+    const drawer = document.getElementById('orderDrawer');
+    if (drawer?.classList.contains('open')) { closeOrder(); return; }
+    const chat = document.getElementById('imChatBox');
+    if (chat?.classList.contains('open')) { chat.classList.remove('open'); return; }
+    if (history.length > 1) history.back();
+    else window.scrollTo({top:0,behavior:'smooth'});
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    const detail = document.getElementById('imProductDetailModal');
+    if (detail?.classList.contains('open')) detail.classList.remove('open');
+    else if (document.getElementById('orderDrawer')?.classList.contains('open')) closeOrder();
+    else if (document.getElementById('imChatBox')?.classList.contains('open')) document.getElementById('imChatBox').classList.remove('open');
+  });
+})();
 function money(value) {
   return "৳" + Number(value || 0).toLocaleString("en-BD");
 }
