@@ -53,7 +53,7 @@
   }
   function navigate(page) {
     if(currentRole!=="admin"){
-      const module=page==="addProduct"?"products":page,perm=rolePermissions[module];
+      const module=(page==="addProduct"||page==="bulkProducts")?"products":page,perm=rolePermissions[module];
       if(!perm?.can_view || ((page==="addProduct"||page==="bulkProducts")&&!perm.can_create)){toast("এই মেনু ব্যবহারের অনুমতি নেই।");return;}
     }
     document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
@@ -81,8 +81,9 @@
   async function loadCategories() {
     const {data,error} = await db.from("categories").select("id,name").eq("is_active",true).order("sort_order");
     if (error) return;
-    $("pCategory").innerHTML = '<option value="">ক্যাটাগরি নির্বাচন করুন</option>' +
-      (data||[]).map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
+    const options=(data||[]).map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
+    $("pCategory").innerHTML = '<option value="">ক্যাটাগরি নির্বাচন করুন</option>' + options;
+    $("bulkProductRows")?.querySelectorAll('select[name="category"]').forEach(sel=>{const old=sel.value;sel.innerHTML='<option value="">ক্যাটাগরি নির্বাচন করুন</option>'+options;sel.value=old;});
     if($("bulkProductRows")?.children.length) { const opts=(data||[]).map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join(""); $("bulkProductRows").querySelectorAll('select[name="category"]').forEach(sel=>{const old=sel.value;sel.innerHTML='<option value="">ক্যাটাগরি নির্বাচন করুন</option>'+opts;sel.value=old;}); }
   }
   async function loadProducts() {
