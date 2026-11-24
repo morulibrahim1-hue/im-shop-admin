@@ -245,24 +245,35 @@
     e.preventDefault(); const btn = $("productForm").querySelector("button[type=submit]"); btn.disabled=true;
     message("productMessage","পণ্য সংরক্ষণ হচ্ছে…");
     try {
-      let imageUrl = null; const file = $("pImage").files[0];
-      if (file) {
-        if (file.size > 5*1024*1024) throw new Error("ছবির সাইজ ৫ MB-এর বেশি।");
-        if (!["image/jpeg","image/png","image/webp"].includes(file.type)) throw new Error("শুধু JPG, PNG বা WebP ছবি দিন।");
+      const files = Array.from($("pImage").files || []);
+      if (files.length > 20) throw new Error("একবারে সর্বোচ্চ ২০টি ছবি নির্বাচন করতে পারবেন।");
+      for (const file of files) {
+        if (file.size > 5*1024*1024) throw new Error(file.name + " ছবির সাইজ ৫ MB-এর বেশি।");
+        if (!["image/jpeg","image/png","image/webp"].includes(file.type)) throw new Error("শুধু JPG, PNG বা WebP ছবি দিন: " + file.name);
+      }
+      const uploadedImages = [];
+      for (const file of files) {
         const ext = file.name.split(".").pop().toLowerCase();
         const path = `${crypto.randomUUID()}.${ext}`;
         const {error:upErr} = await db.storage.from("products").upload(path,file,{contentType:file.type,upsert:false});
         if (upErr) throw upErr;
-        const {data} = db.storage.from("products").getPublicUrl(path); imageUrl = data.publicUrl;
+        const {data} = db.storage.from("products").getPublicUrl(path);
+        uploadedImages.push({image_url:data.publicUrl,alt_text:file.name,sort_order:uploadedImages.length});
       }
+      const imageUrl = uploadedImages[0]?.image_url || null;
       const {data,error} = await db.rpc("admin_add_product",{
         p_name:$("pName").value.trim(), p_description:$("pDescription").value.trim() || null,
         p_category_id:$("pCategory").value || null, p_price:Number($("pPrice").value),
         p_stock_quantity:Number($("pStock").value), p_image_url:imageUrl, p_sku:$("pSku").value.trim() || null
       });
       if (error) throw error;
+      const productId = typeof data === "string" ? data : (data?.id || data?.product_id || data?.[0]?.id || data?.[0]?.product_id);
+      if (uploadedImages.length && productId) {
+        const {error:imageErr} = await db.from("product_images").insert(uploadedImages.map(x=>({...x,product_id:productId})));
+        if (imageErr) throw new Error("পণ্য তৈরি হয়েছে, কিন্তু ছবির গ্যালারি সংরক্ষণ হয়নি: " + imageErr.message);
+      }
       $("productForm").reset(); $("imagePreview").classList.add("hidden");
-      message("productMessage","পণ্য সফলভাবে যোগ হয়েছে।");
+      message("productMessage", uploadedImages.length + "টি ছবি সহ পণ্য সফলভাবে যোগ হয়েছে।");
       toast("নতুন পণ্য যোগ হয়েছে"); await Promise.all([loadProducts(),loadDashboard()]);
     } catch(err) { message("productMessage",err.message || "পণ্য যোগ করা যায়নি।",true); }
     finally { btn.disabled=false; }
@@ -298,7 +309,7 @@
   setupBulkProducts();
   $("refreshOrders").addEventListener("click",loadOrders);
   $("refreshStaff").addEventListener("click",loadStaff);
-  $("pImage").addEventListener("change",()=>{const f=$("pImage").files[0], box=$("imagePreview");if(!f){box.classList.add("hidden");return;}box.innerHTML=`<img alt="ছবির প্রিভিউ" src="${URL.createObjectURL(f)}">`;box.classList.remove("hidden");});
+  $("pImage").addEventListener("change",()=>{const files=Array.from($("pImage").files||[]),box=$("imagePreview");if(files.length>20){$("pImage").value="";box.classList.add("hidden");message("productMessage","একবারে সর্বোচ্চ ২০টি ছবি নির্বাচন করতে পারবেন।",true);return;}box.innerHTML=files.map((f,i)=>`<figure class="multi-image-preview"><img alt="ছবি ${i+1}" src="${URL.createObjectURL(f)}"><figcaption>${i+1}. ${escapeHtml(f.name)}</figcaption></figure>`).join("");if(files.length){box.classList.remove("hidden");message("productMessage",files.length+"টি ছবি নির্বাচন করা হয়েছে।");}else box.classList.add("hidden");});
   init();
   if ("serviceWorker" in navigator) window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
 })();
