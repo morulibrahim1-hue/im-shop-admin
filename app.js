@@ -83,7 +83,7 @@
     if (error) return;
     const options=(data||[]).map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
     $("pCategory").innerHTML = '<option value="">ক্যাটাগরি নির্বাচন করুন</option>' + options;
-    $("bulkProductRows")?.querySelectorAll('select[name="category"]').forEach(sel=>{const old=sel.value;sel.innerHTML='<option value="">ক্যাটাগরি নির্বাচন করুন</option>'+options;sel.value=old;});
+    if($("bulkStyleCategory")) $("bulkStyleCategory").innerHTML='<option value="">ক্যাটাগরি নির্বাচন করুন</option>'+options;
     if($("bulkProductRows")?.children.length) { const opts=(data||[]).map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join(""); $("bulkProductRows").querySelectorAll('select[name="category"]').forEach(sel=>{const old=sel.value;sel.innerHTML='<option value="">ক্যাটাগরি নির্বাচন করুন</option>'+opts;sel.value=old;}); }
   }
   async function loadProducts() {
@@ -210,35 +210,34 @@
     box.querySelectorAll(".staff-status").forEach(el=>el.onchange=async()=>{if(el.dataset.user===currentUser.id&&!el.checked){toast("নিজের অ্যাকাউন্ট বন্ধ করা যাবে না।");return loadStaff()}const {error:e}=await db.from("staff_profiles").update({is_active:el.checked}).eq("user_id",el.dataset.user);if(e)toast(e.message);await loadStaff()});
   }
   function setupBulkProducts() {
-    const rows=$("bulkProductRows"), count=$("bulkProductCount"), form=$("bulkProductForm");
-    if(!rows||!form||rows.dataset.ready)return; rows.dataset.ready="1";
-    const cats=()=>Array.from($("pCategory").options).filter(o=>o.value).map(o=>'<option value="'+o.value+'">'+escapeHtml(o.textContent)+'</option>').join("");
+    const rows=$("bulkProductRows"),count=$("bulkProductCount"),form=$("bulkProductForm");
+    if(!rows||!form||rows.dataset.ready)return;rows.dataset.ready="1";
     function addRow(){
       if(rows.children.length>=20)return;
-      const n=rows.children.length+1,wrap=document.createElement("div");wrap.className="bulk-product-row";
-      wrap.style.cssText="border:1px solid #dce3ee;border-radius:12px;padding:12px;margin:10px 0";
-      wrap.innerHTML='<b>পণ্য '+n+'</b><div class="two-col"><label>পণ্যের নাম *<input name="name" required maxlength="180"></label><label>দাম (৳) *<input name="price" type="number" min="0" step="0.01" required></label></div><div class="two-col"><label>স্টক *<input name="stock" type="number" min="0" step="1" value="0" required></label><label>ক্যাটাগরি<select name="category"><option value="">ক্যাটাগরি নির্বাচন করুন</option>'+cats()+'</select></label></div><label>SKU (ঐচ্ছিক)<input name="sku" maxlength="80"></label><label>বিবরণ (ঐচ্ছিক)<textarea name="description" rows="2"></textarea></label><label>ছবি (ঐচ্ছিক, ৫ MB)<input name="image" type="file" accept="image/jpeg,image/png,image/webp"></label><button type="button" class="secondary remove-bulk-row">এই সারি বাদ দিন</button>';
+      const wrap=document.createElement("div");wrap.className="bulk-product-row";wrap.style.cssText="border:1px solid #dce3ee;border-radius:12px;padding:12px;margin:10px 0";
+      wrap.innerHTML='<b>ভ্যারিয়েন্ট '+(rows.children.length+1)+'</b><div class="two-col"><label>রং *<input name="color" required maxlength="50" placeholder="কালো / লাল / নীল"></label><label>সাইজ (ঐচ্ছিক)<input name="size" maxlength="40" placeholder="M / L / XL"></label></div><div class="two-col"><label>এই রঙের দাম (ফাঁকা রাখলে সাধারণ দাম)<input name="price" type="number" min="0" step="0.01"></label><label>এই রঙের স্টক *<input name="stock" type="number" min="0" step="1" value="0" required></label></div><label>SKU (ঐচ্ছিক)<input name="sku" maxlength="80"></label><button type="button" class="secondary remove-bulk-row">এই রং বাদ দিন</button>';
       rows.appendChild(wrap);count.textContent=rows.children.length+" / ২০টি";
-      wrap.querySelector(".remove-bulk-row").onclick=()=>{wrap.remove();Array.from(rows.children).forEach((el,i)=>el.querySelector("b").textContent="পণ্য "+(i+1));count.textContent=rows.children.length+" / ২০টি";};
+      wrap.querySelector(".remove-bulk-row").onclick=()=>{wrap.remove();Array.from(rows.children).forEach((el,i)=>el.querySelector("b").textContent="ভ্যারিয়েন্ট "+(i+1));count.textContent=rows.children.length+" / ২০টি";};
     }
     addRow();$("addBulkProductRow").onclick=addRow;
     form.onsubmit=async ev=>{
       ev.preventDefault();const btn=form.querySelector('button[type="submit"]'),items=Array.from(rows.children);
-      if(!items.length)return;
-      btn.disabled=true;let ok=0,failed=[];
-      $("bulkProductMessage").textContent="পণ্যগুলো সংরক্ষণ হচ্ছে…";
+      const name=$("bulkStyleName").value.trim(),price=Number($("bulkStylePrice").value),category=$("bulkStyleCategory").value||null,description=$("bulkStyleDescription").value.trim()||null,file=$("bulkStyleImage").files[0];
+      if(!name||!Number.isFinite(price)||price<0||!items.length){$("bulkProductMessage").textContent="পণ্যের নাম, দাম এবং অন্তত একটি রং দিন।";return;}
+      const colors=items.map(row=>row.querySelector('[name="color"]').value.trim().toLocaleLowerCase());
+      if(colors.some(x=>!x)||new Set(colors).size!==colors.length){$("bulkProductMessage").textContent="প্রতিটি রং লিখুন; একই রং একাধিকবার দেওয়া যাবে না।";return;}
+      btn.disabled=true;let productId=null,created=0;$("bulkProductMessage").textContent="একটি পণ্যের তথ্য ও সব রং সংরক্ষণ হচ্ছে…";
       try{
-        for(let i=0;i<items.length;i++){
-          const row=items[i],v=name=>row.querySelector('[name="'+name+'"]').value.trim(),file=row.querySelector('[name="image"]').files[0];let imageUrl=null;
-          if(file){if(file.size>5*1024*1024)throw new Error("পণ্য "+(i+1)+": ছবির সাইজ ৫ MB-এর বেশি।");if(!["image/jpeg","image/png","image/webp"].includes(file.type))throw new Error("পণ্য "+(i+1)+": JPG/PNG/WebP ছবি দিন।");const ext=file.name.split(".").pop().toLowerCase(),path=crypto.randomUUID()+"."+ext;const up=await db.storage.from("products").upload(path,file,{contentType:file.type,upsert:false});if(up.error)throw up.error;imageUrl=db.storage.from("products").getPublicUrl(path).data.publicUrl;}
-          const {error}=await db.rpc("admin_add_product",{p_name:v("name"),p_description:v("description")||null,p_category_id:v("category")||null,p_price:Number(v("price")),p_stock_quantity:Number(v("stock")),p_image_url:imageUrl,p_sku:v("sku")||null});
-          if(error)failed.push("পণ্য "+(i+1)+" ("+v("name")+"): "+error.message);else ok++;
-        }
-        $("bulkProductMessage").textContent=ok+"টি পণ্য যোগ হয়েছে।"+(failed.length?" ব্যর্থ: "+failed.join(" | "):"");
-        $("bulkProductMessage").className="message "+(failed.length?"error":"success");
-        if(ok===items.length){rows.innerHTML="";addRow();}
-        await Promise.all([loadProducts(),loadDashboard()]);
-      }catch(err){$("bulkProductMessage").textContent="সমস্যা: "+err.message;$("bulkProductMessage").className="message error";}
+        let imageUrl=null;
+        if(file){if(file.size>5*1024*1024)throw new Error("ছবির সাইজ ৫ MB-এর বেশি।");if(!["image/jpeg","image/png","image/webp"].includes(file.type))throw new Error("শুধু JPG/PNG/WebP ছবি দিন।");const ext=file.name.split(".").pop().toLowerCase(),path=crypto.randomUUID()+"."+ext;const up=await db.storage.from("products").upload(path,file,{contentType:file.type,upsert:false});if(up.error)throw up.error;imageUrl=db.storage.from("products").getPublicUrl(path).data.publicUrl;}
+        const totalStock=items.reduce((n,row)=>n+Number(row.querySelector('[name="stock"]').value||0),0);
+        const result=await db.rpc("admin_add_product",{p_name:name,p_description:description,p_category_id:category,p_price:price,p_stock_quantity:totalStock,p_image_url:imageUrl,p_sku:null});
+        if(result.error)throw result.error;
+        productId=typeof result.data==="string"?result.data:(result.data?.id||result.data?.product_id||result.data?.[0]?.id||result.data?.[0]?.product_id);
+        if(!productId)throw new Error("পণ্য তৈরি হয়েছে, কিন্তু ID পাওয়া যায়নি; ভ্যারিয়েন্ট যোগ হয়নি। পণ্য তালিকা যাচাই করুন।");
+        for(let i=0;i<items.length;i++){const row=items[i],v=n=>row.querySelector('[name="'+n+'"]').value.trim(),priceText=row.querySelector('[name="price"]').value;const result=await db.rpc("admin_add_product_variant",{p_product_id:productId,p_size:v("size")||null,p_color:v("color"),p_sku:v("sku")||null,p_price:priceText===""?null:Number(priceText),p_stock_quantity:Number(v("stock"))});if(result.error)throw new Error(v("color")+" রং যোগ হয়নি: "+result.error.message);created++;}
+        $("bulkProductMessage").textContent="সফল! একটি পণ্যের বিবরণ একবার লিখে "+created+"টি রং/সাইজের ভ্যারিয়েন্ট যোগ হয়েছে.";$("bulkProductMessage").className="message success";form.reset();rows.innerHTML="";addRow();await Promise.all([loadProducts(),loadDashboard()]);
+      }catch(err){$("bulkProductMessage").textContent=(productId?"পণ্য তৈরি হয়েছে; ":"")+"সমস্যা: "+err.message;$("bulkProductMessage").className="message error";await Promise.all([loadProducts(),loadDashboard()]);}
       finally{btn.disabled=false;}
     };
   }
