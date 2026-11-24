@@ -304,13 +304,7 @@
       if (error) throw error;
       const productId = typeof data === "string" ? data : (data?.id || data?.product_id || data?.[0]?.id || data?.[0]?.product_id);
       if (uploadedImages.length && productId) {
-        let imageErr = null;
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          const result = await db.from("product_images").insert(uploadedImages.map(x=>({...x,product_id:productId})));
-          imageErr = result.error;
-          if (!imageErr) break;
-          if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 600 * attempt));
-        }
+        const {error:imageErr} = await db.from("product_images").insert(uploadedImages.map(x=>({...x,product_id:productId})));
         if (imageErr) throw new Error("পণ্য তৈরি হয়েছে, কিন্তু " + uploadedImages.length + "টি ছবির গ্যালারি সংরক্ষণ হয়নি: " + imageErr.message + "। পণ্যের সম্পাদনা থেকে ছবিগুলো আবার সংরক্ষণ করুন।");
       }
       $("productForm").reset(); $("imagePreview").classList.add("hidden");
