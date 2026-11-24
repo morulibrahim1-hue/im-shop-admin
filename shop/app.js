@@ -81,9 +81,9 @@ function renderProducts() {
   productsBox.innerHTML = filtered.map(p => {
     const opts = allVariants.filter(v => String(v.product_id) === String(p.id));
     const inStock = opts.length ? opts.some(v => Number(v.stock_quantity) > 0) : Number(p.stock_quantity || 0) > 0;
-    const variantSelect = opts.length ? '<label class="variant-label" for="variant-' + escapeHTML(p.id) + '">সাইজ নির্বাচন করুন</label><select class="variant-select" id="variant-' + escapeHTML(p.id) + '"><option value="">সাইজ বাছুন</option>' + opts.map(v => { const available = Number(v.stock_quantity) > 0; return '<option value="' + escapeHTML(v.id) + '" ' + (!available ? 'disabled' : '') + '>' + escapeHTML([v.size,v.color].filter(Boolean).join(' / ') || 'ভ্যারিয়েন্ট') + ' — ' + money(v.price ?? p.price) + (available ? ' (স্টক ' + Number(v.stock_quantity) + ')' : ' (স্টক শেষ)') + '</option>'; }).join('') + '</select>' : '';
+    const variantSelect = '';
     const details = '<div class="product-details" id="details-' + escapeHTML(p.id) + '" hidden><p>' + (p.description ? escapeHTML(p.description).replace(/\\n/g,'<br>') : 'এই পণ্যের বিস্তারিত বিবরণ এখনো যোগ করা হয়নি।') + '</p><p><b>দাম:</b> ' + money(p.price) + ' · <b>স্টক:</b> ' + Number(p.stock_quantity || 0) + '</p>' + (opts.length ? '<p><b>সাইজ/কালার ও আলাদা দাম:</b></p><ul>' + opts.map(v => '<li>' + escapeHTML([v.size,v.color].filter(Boolean).join(' / ') || 'ভ্যারিয়েন্ট') + ' — ' + money(v.price ?? p.price) + ' · স্টক ' + Number(v.stock_quantity || 0) + '</li>').join('') + '</ul>' : '') + '</div>';
-    return '<article class="product">' + (p.image_url ? '<img src="' + escapeHTML(p.image_url) + '" alt="' + escapeHTML(p.name) + '" loading="lazy">' : '<div style="height:145px;background:#eee"></div>') + '<div class="product-info"><h3>' + escapeHTML(p.name) + '</h3><div class="price">' + money(p.price) + '</div><div class="stock">' + (inStock ? 'স্টকে আছে' : 'স্টক শেষ') + '</div><button type="button" class="details-toggle" data-details="' + escapeHTML(p.id) + '">বিস্তারিত দেখুন</button>' + details + variantSelect + '<button data-order="' + escapeHTML(p.id) + '" ' + (!inStock || opts.length ? 'disabled' : '') + '>' + (inStock ? (opts.length ? 'আগে সাইজ বাছুন' : 'অর্ডার নাও') : 'স্টক শেষ') + '</button></div></article>';
+    return '<article class="product">' + (p.image_url ? '<img src="' + escapeHTML(p.image_url) + '" alt="' + escapeHTML(p.name) + '" loading="lazy">' : '<div style="height:145px;background:#eee"></div>') + '<div class="product-info"><h3>' + escapeHTML(p.name) + '</h3><div class="price">' + money(p.price) + '</div><div class="stock">' + (inStock ? 'স্টকে আছে' : 'স্টক শেষ') + '</div><button type="button" class="details-toggle" data-details="' + escapeHTML(p.id) + '">বিস্তারিত দেখুন</button>' + details + variantSelect + '<button data-order="' + escapeHTML(p.id) + '" ' + (!inStock ? 'disabled' : '') + '>' + (inStock ? 'অর্ডার নাও' : 'স্টক শেষ') + '</button></div></article>';
   }).join('');
   // Open a focused product detail view when the customer taps its photo or title.
   productsBox.querySelectorAll('.product img, .product-info h3').forEach(target => {
@@ -99,12 +99,6 @@ function renderProducts() {
     const opening = panel.hidden;
     panel.hidden = !opening;
     button.textContent = opening ? 'বিস্তারিত বন্ধ করুন' : 'বিস্তারিত দেখুন';
-  }));
-  productsBox.querySelectorAll('.variant-select').forEach(select => select.addEventListener('change', () => {
-    const button = productsBox.querySelector('[data-order="' + CSS.escape(select.id.replace('variant-', '')) + '"]');
-    const variant = allVariants.find(v => String(v.id) === String(select.value));
-    button.disabled = !variant || Number(variant.stock_quantity) < 1;
-    button.textContent = button.disabled ? 'আগে সাইজ বাছুন' : 'অর্ডার নাও';
   }));
   productsBox.querySelectorAll('[data-order]').forEach(button => button.addEventListener('click', () => openDirectOrder(button.dataset.order)));
 }
@@ -131,23 +125,41 @@ function openProductDetails(id) {
 function openDirectOrder(id) {
   const p = allProducts.find(x => String(x.id) === String(id)); if (!p) return;
   const opts = allVariants.filter(v => String(v.product_id) === String(id));
-  const variantId = opts.length ? document.getElementById('variant-' + id)?.value : null;
-  if (opts.length && !variantId) { alert('অর্ডারের আগে সাইজ/ভ্যারিয়েন্ট বাছুন।'); return; }
-  const v = variantId ? opts.find(x => String(x.id) === String(variantId)) : null;
-  if (opts.length && !v) { alert('সঠিক ভ্যারিয়েন্ট বাছুন।'); return; }
-  const stock = Number(v ? v.stock_quantity : p.stock_quantity || 0); if (stock < 1) { alert('এই পণ্যটি স্টকে নেই।'); return; }
-  selectedOrder = {product_id:p.id, variant_id:v?.id || null, name:p.name, variant:v ? [v.size,v.color].filter(Boolean).join(' / ') : '', price:Number(v?.price ?? p.price), stock:stock};
+  const available = opts.filter(v => Number(v.stock_quantity) > 0);
+  const stock = opts.length ? available.reduce((sum,v)=>sum+Number(v.stock_quantity||0),0) : Number(p.stock_quantity||0);
+  if (stock < 1) { alert('এই পণ্যটি স্টকে নেই।'); return; }
+  selectedOrder = {product_id:p.id, variant_id:null, name:p.name, variant:'', price:Number(p.price), stock:stock, variants:opts};
   const image = p.image_url ? '<img src="' + escapeHTML(p.image_url) + '" alt="">' : '';
-  document.getElementById('orderProduct').innerHTML = image + '<div><b>' + escapeHTML(p.name) + '</b><span>' + escapeHTML(selectedOrder.variant) + ' · ' + money(selectedOrder.price) + ' · স্টক ' + stock + '</span></div>';
+  document.getElementById('orderProduct').innerHTML = image + '<div><b>' + escapeHTML(p.name) + '</b><span>' + money(p.price) + ' · স্টক ' + stock + '</span></div>';
+  const variantField = document.getElementById('checkoutVariantField');
+  if (variantField) {
+    variantField.hidden = !opts.length;
+    const select = document.getElementById('checkoutVariant');
+    select.innerHTML = '<option value="">সাইজ/কালার বাছুন</option>' + available.map(v=>'<option value="'+escapeHTML(v.id)+'">'+escapeHTML([v.size,v.color].filter(Boolean).join(' / ')||'ভ্যারিয়েন্ট')+' — '+money(v.price??p.price)+' · স্টক '+Number(v.stock_quantity)+'</option>').join('');
+    select.required = !!opts.length;
+  }
   const qty = document.getElementById('checkout').elements.quantity; qty.max = Math.min(stock,20); qty.value = 1;
   document.getElementById('checkoutMsg').textContent = ''; const drawer=document.getElementById('orderDrawer'); drawer.classList.add('open'); drawer.setAttribute('aria-hidden','false');
 }
+document.getElementById('checkoutVariant')?.addEventListener('change', e => {
+  if (!selectedOrder) return;
+  const v = selectedOrder.variants.find(x=>String(x.id)===String(e.target.value));
+  if (!v) { selectedOrder.variant_id=null; selectedOrder.variant=''; selectedOrder.price=Number(allProducts.find(p=>String(p.id)===String(selectedOrder.product_id))?.price||0); return; }
+  selectedOrder.variant_id=v.id;
+  selectedOrder.variant=[v.size,v.color].filter(Boolean).join(' / ');
+  selectedOrder.price=Number(v.price??allProducts.find(p=>String(p.id)===String(selectedOrder.product_id))?.price??0);
+  selectedOrder.stock=Number(v.stock_quantity||0);
+  const qty=document.getElementById('checkout').elements.quantity; qty.max=Math.min(selectedOrder.stock,20); if(Number(qty.value)>selectedOrder.stock) qty.value=selectedOrder.stock;
+  const p=allProducts.find(p=>String(p.id)===String(selectedOrder.product_id));
+  document.getElementById('orderProduct').querySelector('span').textContent=selectedOrder.variant+' · '+money(selectedOrder.price)+' · স্টক '+selectedOrder.stock;
+});
 function closeOrder() { const drawer=document.getElementById('orderDrawer'); drawer.classList.remove('open'); drawer.setAttribute('aria-hidden','true'); }
 document.getElementById('closeOrder').addEventListener('click', closeOrder);
 document.getElementById('orderDrawer').addEventListener('click', e => { if (e.target.id === 'orderDrawer') closeOrder(); });
 document.getElementById('checkout').addEventListener('submit', async e => {
   e.preventDefault(); if (!selectedOrder) return;
   const form=e.currentTarget, data=new FormData(form), qty=Number(data.get('quantity')), msg=document.getElementById('checkoutMsg'), btn=document.getElementById('submitOrder');
+  if (selectedOrder.variants.length && !selectedOrder.variant_id) { msg.textContent='অর্ডারের আগে সাইজ/কালার নির্বাচন করুন।'; return; }
   const zone=String(data.get('delivery_zone')||''), district=String(data.get('district')||'').trim().toLowerCase();
   const isDhakaDistrict=['ঢাকা','dhaka'].includes(district);
   if (!zone) { msg.textContent='ঢাকার ভিতরে নাকি ঢাকার বাইরে—নির্বাচন করুন।'; return; }
