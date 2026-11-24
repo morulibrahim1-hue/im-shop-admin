@@ -120,8 +120,16 @@
       <section id="page-bulkProducts" class="page hidden">
         <div class="panel form-panel"><h3>একসাথে সর্বোচ্চ ২০টি পণ্য যোগ করুন</h3><p class="muted">প্রতিটি সারিতে একটি পণ্যের নাম, দাম, স্টক ও ক্যাটাগরি দিন।</p>
           <form id="bulkProductForm">
-            <div id="bulkProductRows"></div>
-            <div class="toolbar"><button type="button" class="secondary" id="addBulkProductRow">＋ আরেকটি পণ্য</button><span id="bulkProductCount" class="muted">১ / ২০টি</span></div>
+            <div class="module-form">
+<h4>একই পণ্যের সাধারণ তথ্য (একবারই লিখুন)</h4>
+<label>পণ্যের নাম *<input id="bulkStyleName" required maxlength="180"></label>
+<div class="two-col"><label>দাম (৳) *<input id="bulkStylePrice" type="number" min="0" step="0.01" required></label><label>ক্যাটাগরি<select id="bulkStyleCategory"><option value="">ক্যাটাগরি নির্বাচন করুন</option></select></label></div>
+<label>একবারের পণ্যের বিস্তারিত বিবরণ<textarea id="bulkStyleDescription" rows="3" placeholder="সব রঙের জন্য একই বিবরণ"></textarea></label>
+<label>পণ্যের ছবি (সর্বোচ্চ ৫ MB)<input id="bulkStyleImage" type="file" accept="image/jpeg,image/png,image/webp"></label>
+<h4>রং/সাইজের ভ্যারিয়েন্ট (প্রতি রং এক সারি)</h4>
+<div id="bulkProductRows"></div>
+<div class="toolbar"><button type="button" class="secondary" id="addBulkProductRow">＋ আরেকটি রং যোগ করুন</button><span id="bulkProductCount" class="muted">১ / ২০টি</span></div>
+</div>
             <button class="primary" type="submit">নির্বাচিত পণ্যগুলো একসাথে পোস্ট করুন</button><p id="bulkProductMessage" class="message" aria-live="polite"></p>
           </form>
         </div>
