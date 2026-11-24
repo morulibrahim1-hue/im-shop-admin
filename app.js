@@ -241,6 +241,44 @@
       finally{btn.disabled=false;}
     };
   }
+  async function prepareProductImage(file) {
+    if (!window.createImageBitmap || file.size < 900 * 1024) return file;
+    let bitmap;
+    try { bitmap = await createImageBitmap(file); } catch (_) { return file; }
+    try {
+      const maxSide = 1800, scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+      if (scale === 1 && file.size < 2 * 1024 * 1024) return file;
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const ctx = canvas.getContext("2d", {alpha:true});
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const keepPng = file.type === "image/png";
+      const type = keepPng ? "image/png" : "image/jpeg";
+      const blob = await new Promise((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error("ছবি প্রস্তুত করা যায়নি")), type, 0.82));
+      const ext = keepPng ? "png" : "jpg";
+      return new File([blob], file.name.replace(/\.[^.]+$/, "") + "." + ext, {type, lastModified:Date.now()});
+    } finally { bitmap.close?.(); }
+  }
+  async function uploadProductImage(file) {
+    let lastError;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const ext = file.name.split(".").pop().toLowerCase();
+      const path = `${crypto.randomUUID()}.${ext}`;
+      try {
+        const {error} = await db.storage.from("products").upload(path, file, {contentType:file.type, upsert:false});
+        if (error) throw error;
+        const {data} = db.storage.from("products").getPublicUrl(path);
+        if (!data?.publicUrl) throw new Error("ছবির URL পাওয়া যায়নি");
+        return {image_url:data.publicUrl, alt_text:file.name, sort_order:0};
+      } catch (err) {
+        lastError = err;
+        if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 700 * attempt));
+      }
+    }
+    const detail = lastError?.message || String(lastError || "অজানা নেটওয়ার্ক সমস্যা");
+    throw new Error(file.name + " আপলোড হয়নি: " + detail + "। ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।");
+  }
   async function addProduct(e) {
     e.preventDefault(); const btn = $("productForm").querySelector("button[type=submit]"); btn.disabled=true;
     message("productMessage","পণ্য সংরক্ষণ হচ্ছে…");
@@ -252,13 +290,10 @@
         if (!["image/jpeg","image/png","image/webp"].includes(file.type)) throw new Error("শুধু JPG, PNG বা WebP ছবি দিন: " + file.name);
       }
       const uploadedImages = [];
-      for (const file of files) {
-        const ext = file.name.split(".").pop().toLowerCase();
-        const path = `${crypto.randomUUID()}.${ext}`;
-        const {error:upErr} = await db.storage.from("products").upload(path,file,{contentType:file.type,upsert:false});
-        if (upErr) throw upErr;
-        const {data} = db.storage.from("products").getPublicUrl(path);
-        uploadedImages.push({image_url:data.publicUrl,alt_text:file.name,sort_order:uploadedImages.length});
+      for (const originalFile of files) {
+        const file = await prepareProductImage(originalFile);
+        const image = await uploadProductImage(file);
+        uploadedImages.push({...image, sort_order:uploadedImages.length});
       }
       const imageUrl = uploadedImages[0]?.image_url || null;
       const {data,error} = await db.rpc("admin_add_product",{
@@ -270,7 +305,7 @@
       const productId = typeof data === "string" ? data : (data?.id || data?.product_id || data?.[0]?.id || data?.[0]?.product_id);
       if (uploadedImages.length && productId) {
         const {error:imageErr} = await db.from("product_images").insert(uploadedImages.map(x=>({...x,product_id:productId})));
-        if (imageErr) throw new Error("পণ্য তৈরি হয়েছে, কিন্তু ছবির গ্যালারি সংরক্ষণ হয়নি: " + imageErr.message);
+        if (imageErr) throw new Error("পণ্য তৈরি হয়েছে, কিন্তু " + uploadedImages.length + "টি ছবির গ্যালারি সংরক্ষণ হয়নি: " + imageErr.message + "। পণ্যের সম্পাদনা থেকে ছবিগুলো আবার সংরক্ষণ করুন।");
       }
       $("productForm").reset(); $("imagePreview").classList.add("hidden");
       message("productMessage", uploadedImages.length + "টি ছবি সহ পণ্য সফলভাবে যোগ হয়েছে।");
