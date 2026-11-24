@@ -48,6 +48,8 @@
   }
   async function refreshAll() {
     await Promise.allSettled([loadDashboard(), loadProducts(), loadCategories(), loadOrders(), loadStaff()]);
+    setupBulkProducts();
+    await loadCategories();
   }
   function navigate(page) {
     if(currentRole!=="admin"){
