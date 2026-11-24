@@ -31,7 +31,7 @@
       <nav id="sideNav">
         <button class="nav-item active" data-page="dashboard"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> <span>ড্যাশবোর্ড</span></button>
         <button class="nav-item" data-page="products"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg> <span>পণ্যসমূহ</span></button>
-        <button class="nav-item" data-page="addProduct"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> <span>পণ্য যোগ করুন</span></button>
+        <button class="nav-item" data-page="bulkProducts"><span>▦</span> <span>একসাথে ২০টি পণ্য</span></button><button class="nav-item" data-page="addProduct"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> <span>পণ্য যোগ করুন</span></button>
         <button class="nav-item" data-page="orders"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 10h6M9 14h6M9 18h3"/></svg> <span>অর্ডারসমূহ</span></button>
         <button class="nav-item" data-page="settings"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.6a8 8 0 0 1-1.5.9l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.5-.9l-1.7.6-1.4-2.4 1.4-1.1a8 8 0 0 1 0-1.8l-1.4-1.1 1.4-2.4 1.7.6a8 8 0 0 1 1.5-.9l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.5.9l1.7-.6 1.4 2.4-1.4 1.1a8 8 0 0 1 0 1.8Z"/></svg> <span>সেটিংস</span></button>
         <button class="nav-item" data-page="staff"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M20 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> <span>স্টাফ ম্যানেজমেন্ট</span></button>
@@ -113,6 +113,16 @@
             <label>পণ্যের ছবি (JPG/PNG/WebP, সর্বোচ্চ ৫ MB)<input id="pImage" type="file" accept="image/jpeg,image/png,image/webp"></label>
             <div id="imagePreview" class="image-preview hidden"></div>
             <button class="primary" type="submit">পণ্য সংরক্ষণ করুন</button><p id="productMessage" class="message" aria-live="polite"></p>
+          </form>
+        </div>
+      </section>
+
+      <section id="page-bulkProducts" class="page hidden">
+        <div class="panel form-panel"><h3>একসাথে সর্বোচ্চ ২০টি পণ্য যোগ করুন</h3><p class="muted">প্রতিটি সারিতে একটি পণ্যের নাম, দাম, স্টক ও ক্যাটাগরি দিন।</p>
+          <form id="bulkProductForm">
+            <div id="bulkProductRows"></div>
+            <div class="toolbar"><button type="button" class="secondary" id="addBulkProductRow">＋ আরেকটি পণ্য</button><span id="bulkProductCount" class="muted">১ / ২০টি</span></div>
+            <button class="primary" type="submit">নির্বাচিত পণ্যগুলো একসাথে পোস্ট করুন</button><p id="bulkProductMessage" class="message" aria-live="polite"></p>
           </form>
         </div>
       </section>
