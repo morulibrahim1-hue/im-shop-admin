@@ -81,9 +81,15 @@ function renderProducts() {
   productsBox.innerHTML = filtered.map(p => {
     const opts = allVariants.filter(v => String(v.product_id) === String(p.id));
     const inStock = opts.length ? opts.some(v => Number(v.stock_quantity) > 0) : Number(p.stock_quantity || 0) > 0;
-    const variantSelect = opts.length ? '<select class="variant-select" id="variant-' + escapeHTML(p.id) + '"><option value="">সাইজ/ভ্যারিয়েন্ট বাছুন</option>' + opts.map(v => '<option value="' + escapeHTML(v.id) + '" ' + '>' + escapeHTML([v.size,v.color].filter(Boolean).join(' / ') || 'ভ্যারিয়েন্ট') + ' — ' + money(v.price ?? p.price) + ' (স্টক ' + Number(v.stock_quantity || 0) + ')</option>').join('') + '</select>' : '';
-    return '<article class="product">' + (p.image_url ? '<img src="' + escapeHTML(p.image_url) + '" alt="' + escapeHTML(p.name) + '" loading="lazy">' : '<div style="height:145px;background:#eee"></div>') + '<div class="product-info"><h3>' + escapeHTML(p.name) + '</h3><div class="price">' + money(p.price) + '</div><div class="stock">' + (inStock ? 'স্টকে আছে' : 'স্টক শেষ') + '</div>' + variantSelect + '<button data-order="' + escapeHTML(p.id) + '" ' + (!inStock ? 'disabled' : '') + '>' + (inStock ? 'অর্ডার নাও' : 'স্টক শেষ') + '</button></div></article>';
+    const variantSelect = opts.length ? '<label class="variant-label" for="variant-' + escapeHTML(p.id) + '">সাইজ নির্বাচন করুন</label><select class="variant-select" id="variant-' + escapeHTML(p.id) + '"><option value="">সাইজ বাছুন</option>' + opts.map(v => { const available = Number(v.stock_quantity) > 0; return '<option value="' + escapeHTML(v.id) + '" ' + (!available ? 'disabled' : '') + '>' + escapeHTML([v.size,v.color].filter(Boolean).join(' / ') || 'ভ্যারিয়েন্ট') + ' — ' + money(v.price ?? p.price) + (available ? ' (স্টক ' + Number(v.stock_quantity) + ')' : ' (স্টক শেষ)') + '</option>'; }).join('') + '</select>' : '';
+    return '<article class="product">' + (p.image_url ? '<img src="' + escapeHTML(p.image_url) + '" alt="' + escapeHTML(p.name) + '" loading="lazy">' : '<div style="height:145px;background:#eee"></div>') + '<div class="product-info"><h3>' + escapeHTML(p.name) + '</h3><div class="price">' + money(p.price) + '</div><div class="stock">' + (inStock ? 'স্টকে আছে' : 'স্টক শেষ') + '</div>' + variantSelect + '<button data-order="' + escapeHTML(p.id) + '" ' + (!inStock || opts.length ? 'disabled' : '') + '>' + (inStock ? (opts.length ? 'আগে সাইজ বাছুন' : 'অর্ডার নাও') : 'স্টক শেষ') + '</button></div></article>';
   }).join('');
+  productsBox.querySelectorAll('.variant-select').forEach(select => select.addEventListener('change', () => {
+    const button = productsBox.querySelector('[data-order="' + CSS.escape(select.id.replace('variant-', '')) + '"]');
+    const variant = allVariants.find(v => String(v.id) === String(select.value));
+    button.disabled = !variant || Number(variant.stock_quantity) < 1;
+    button.textContent = button.disabled ? 'আগে সাইজ বাছুন' : 'অর্ডার নাও';
+  }));
   productsBox.querySelectorAll('[data-order]').forEach(button => button.addEventListener('click', () => openDirectOrder(button.dataset.order)));
 }
 function openDirectOrder(id) {
