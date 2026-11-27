@@ -7,6 +7,7 @@
   let currentRole = "admin";
   let rolePermissions = {};
   let toastTimer;
+  const pageHistory = [];
 
   function message(id, text, bad=false) {
     const el = $(id); if (!el) return;
@@ -51,16 +52,19 @@
     setupBulkProducts();
     await loadCategories();
   }
-  function navigate(page) {
+  function navigate(page, fromBack=false) {
     if(currentRole!=="admin"){
       const module=(page==="addProduct"||page==="bulkProducts")?"products":page,perm=rolePermissions[module];
       if(!perm?.can_view || ((page==="addProduct"||page==="bulkProducts")&&!perm.can_create)){toast("এই মেনু ব্যবহারের অনুমতি নেই।");return;}
     }
+    const activePage=document.querySelector(".page:not(.hidden)")?.id?.replace("page-","");
+    if(!fromBack && activePage && activePage!==page) pageHistory.push(activePage);
     document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
     $("page-" + page).classList.remove("hidden");
     document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.page === page));
     const titles = {dashboard:"ড্যাশবোর্ড",products:"পণ্যসমূহ",addProduct:"পণ্য যোগ করুন",bulkProducts:"একসাথে ২০টি পণ্য যোগ",orders:"অর্ডারসমূহ",staff:"স্টাফ ম্যানেজমেন্ট",settings:"সেটিংস",categories:"ক্যাটাগরি",inventory:"স্টক ও ইনভেন্টরি",customers:"কাস্টমার",reports:"বিক্রয় ও রিপোর্ট",payments:"পেমেন্ট",delivery:"ডেলিভারি",marketing:"কুপন ও প্রচার",notifications:"নোটিফিকেশন",chat:"ইউজার চ্যাট",security:"নিরাপত্তা"};
     $("pageTitle").textContent = titles[page] || "ড্যাশবোর্ড";
+    const backBtn=$("globalBackBtn"); if(backBtn) backBtn.hidden=(page==="dashboard");
     window.dispatchEvent(new CustomEvent("imshop:page", {detail:{page}}));
   }
   async function loadDashboard() {
@@ -378,6 +382,7 @@
   });
   $("logoutBtn").addEventListener("click",async()=>{await db.auth.signOut();showLogin();});
   $("sideNav").addEventListener("click",e=>{const b=e.target.closest("[data-page]");if(b)navigate(b.dataset.page);});
+  $("globalBackBtn")?.addEventListener("click",()=>{const previous=pageHistory.pop()||"dashboard";navigate(previous,true);});
   document.addEventListener("click",e=>{const b=e.target.closest("[data-goto]");if(b)navigate(b.dataset.goto);});
   $("productForm").addEventListener("submit",addProduct);
   $("addBulkProductRow")?.addEventListener("click",()=>{});
