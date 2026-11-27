@@ -102,7 +102,7 @@
     box.innerHTML = '<p class="pad muted">অর্ডার লোড হচ্ছে…</p>';
     let data=[], error=null, from=0, page=[];
     do {
-      const result=await db.from("orders").select("id,order_number,customer_name,total,status,created_at")
+      const result=await db.from("orders").select("id,order_number,customer_name,customer_phone,customer_address,total,status,created_at")
         .order("created_at",{ascending:false}).range(from,from+999);
       if(result.error){error=result.error;break;}
       page=result.data||[];data.push(...page);from+=page.length;
