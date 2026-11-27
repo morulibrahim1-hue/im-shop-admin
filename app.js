@@ -94,20 +94,60 @@
   function orderTable(rows, full=true) {
     if (!rows.length) return '<p class="pad muted">এখনো কোনো অর্ডার নেই।</p>';
     if (!full) return '<div class="table-wrap"><table><thead><tr><th>অর্ডার নম্বর</th><th>ক্রেতা</th><th>মোট</th><th>অবস্থা</th></tr></thead><tbody>'+rows.map(x=>'<tr><td>'+escapeHtml(x.order_number||"—") + '</td><td>'+escapeHtml(x.customer_name||"—") + '</td><td>'+money(x.total)+'</td><td>'+escapeHtml(statusNames[x.status]||x.status||"—")+'</td></tr>').join("")+'</tbody></table></div>';
-    return '<div class="toolbar"><label>অর্ডার খুঁজুন<input id="orderSearch" type="search" placeholder="অর্ডার নম্বর বা ক্রেতার নাম"></label><label>স্ট্যাটাস বাছাই<select id="orderStatusFilter"><option value="">সব স্ট্যাটাস</option>'+Object.entries(statusNames).map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join("")+'</select></label><button id="orderExport" class="secondary" type="button">CSV ডাউনলোড</button></div><div id="orderSummary" class="module-kpis"></div><div class="table-wrap"><table><thead><tr><th>অর্ডার নম্বর</th><th>ক্রেতা</th><th>মোট</th><th>বর্তমান অবস্থা</th><th>স্ট্যাটাস পরিবর্তন</th><th>তারিখ</th><th>বিস্তারিত</th></tr></thead><tbody id="orderRows"></tbody></table></div>';
+    return '<div class="toolbar"><label>অর্ডার খুঁজুন<input id="orderSearch" type="search" placeholder="অর্ডার নম্বর বা ক্রেতার নাম"></label><label>স্ট্যাটাস বাছাই<select id="orderStatusFilter"><option value="">সব স্ট্যাটাস</option>'+Object.entries(statusNames).map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join("")+'</select></label><button id="orderExport" class="secondary" type="button">CSV ডাউনলোড</button><button id="orderArchiveOpen" class="secondary" type="button" title="তারিখ অনুযায়ী PDF আর্কাইভ">📁 PDF আর্কাইভ</button></div><section id="orderArchivePanel" class="feature-card" hidden aria-live="polite"></section><div id="orderSummary" class="module-kpis"></div><div class="table-wrap"><table><thead><tr><th>অর্ডার নম্বর</th><th>ক্রেতা</th><th>মোট</th><th>বর্তমান অবস্থা</th><th>স্ট্যাটাস পরিবর্তন</th><th>তারিখ</th><th>বিস্তারিত</th></tr></thead><tbody id="orderRows"></tbody></table></div>';
   }
   async function loadOrders() {
     const box = $("ordersList");
     if (!box) return;
     box.innerHTML = '<p class="pad muted">অর্ডার লোড হচ্ছে…</p>';
-    const {data,error} = await db.from("orders")
-      .select("id,order_number,customer_name,total,status,created_at")
-      .order("created_at",{ascending:false}).limit(1000);
+    let data=[], error=null, from=0, page=[];
+    do {
+      const result=await db.from("orders").select("id,order_number,customer_name,customer_phone,customer_address,total,status,created_at")
+        .order("created_at",{ascending:false}).range(from,from+999);
+      if(result.error){error=result.error;break;}
+      page=result.data||[];data.push(...page);from+=page.length;
+    } while(page.length===1000);
     if (error) {
       box.innerHTML = '<p class="pad error">অর্ডার লোড হয়নি: ' + escapeHtml(error.message) + '</p>';
       return;
     }
     const rows = data || [];
+    const dhakaDate = value => new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Dhaka",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(value));
+    const todayDhaka = dhakaDate(new Date());
+    const archivePanel = $("orderArchivePanel");
+    const archiveButton = $("orderArchiveOpen");
+    const archivedGroups = () => {
+      const groups={};
+      rows.forEach(order=>{const day=dhakaDate(order.created_at);if(day!==todayDhaka)(groups[day]??=[]).push(order);});
+      return Object.entries(groups).sort((a,b)=>b[0].localeCompare(a[0]));
+    };
+    const prettyDay = day => new Date(day+"T12:00:00+06:00").toLocaleDateString("bn-BD",{timeZone:"Asia/Dhaka",year:"numeric",month:"long",day:"numeric"});
+    async function downloadDailyPdf(day, dayOrders) {
+      const w=window.open("","_blank");
+      if(!w){toast("PDF তৈরি করতে পপ-আপ অনুমতি দিন।");return;}
+      w.document.write('<!doctype html><html lang="bn"><meta charset="utf-8"><title>I M SHOP - '+day+'</title><style>body{font-family:Arial,"Noto Sans Bengali",sans-serif;padding:24px;color:#17243a}h1,h2{margin:4px 0}p{margin:6px 0}.order{page-break-inside:avoid;border:1px solid #ccd4e0;border-radius:8px;padding:12px;margin:14px 0}table{width:100%;border-collapse:collapse;margin:10px 0}td,th{border:1px solid #ccd4e0;padding:7px;text-align:left}th{background:#edf3ff}.sum{text-align:right;font-weight:bold}.muted{color:#536176}@media print{button{display:none}}</style><h1>I M SHOP</h1><h2>দৈনিক অর্ডার রিপোর্ট</h2><p>তারিখ: '+prettyDay(day)+'</p><p>মোট অর্ডার: '+dayOrders.length+'টি</p><hr><div id="report">রিপোর্ট তৈরি হচ্ছে…</div></html>');
+      try {
+        const ids=dayOrders.map(x=>x.id), itemsResult=ids.length?await db.from("order_items").select("order_id,product_name,quantity,unit_price,line_total").in("order_id",ids):{data:[],error:null};
+        if(itemsResult.error)throw itemsResult.error;
+        const grouped={};(itemsResult.data||[]).forEach(it=>(grouped[it.order_id]??=[]).push(it));
+        const esc=escapeHtml;
+        const html=dayOrders.map((o,index)=>{
+          const items=grouped[o.id]||[];
+          return '<section class="order"><h3>'+(index+1)+'. অর্ডার: '+esc(o.order_number||o.id)+'</h3><p>ক্রেতা: '+esc(o.customer_name||"—")+' | ফোন: '+esc(o.customer_phone||"—")+'</p><p>ঠিকানা: '+esc(o.customer_address||"—")+'</p><p>সময়: '+esc(new Date(o.created_at).toLocaleString("bn-BD",{timeZone:"Asia/Dhaka"}))+' | স্ট্যাটাস: '+esc(statusNames[o.status]||o.status||"—")+'</p><table><thead><tr><th>পণ্য</th><th>পরিমাণ</th><th>একক দাম</th><th>মোট</th></tr></thead><tbody>'+items.map(it=>'<tr><td>'+esc(it.product_name)+'</td><td>'+Number(it.quantity||0)+'</td><td>'+money(it.unit_price)+'</td><td>'+money(it.line_total)+'</td></tr>').join("")+'</tbody></table><p class="sum">অর্ডার মোট: '+money(o.total)+'</p></section>';
+        }).join("");
+        w.document.getElementById("report").innerHTML=html+'<h3>দিনের মোট বিক্রি: '+money(dayOrders.reduce((n,o)=>n+Number(o.total||0),0))+'</h3>';
+        w.document.close();w.focus();setTimeout(()=>w.print(),500);
+      } catch(err){w.close();toast("PDF রিপোর্ট তৈরি হয়নি: "+err.message);}
+    }
+    function renderArchive(){
+      const groups=archivedGroups();
+      archivePanel.hidden=false;
+      archivePanel.innerHTML='<div class="panel-head"><div><h3>📁 দৈনিক PDF আর্কাইভ</h3><p class="muted">আজকের অর্ডার এখানে নয়; আগের দিনের অর্ডার তারিখ অনুযায়ী দেখানো হচ্ছে।</p></div><button type="button" class="secondary" id="orderArchiveClose">বন্ধ</button></div>'+
+       (groups.length?groups.map(([day,orders])=>'<div class="toolbar"><div><b>'+prettyDay(day)+'</b><div class="muted">'+orders.length+'টি অর্ডার · মোট '+money(orders.reduce((n,o)=>n+Number(o.total||0),0))+'</div></div><button type="button" class="primary dailyPdf" data-day="'+day+'">⬇ PDF ডাউনলোড</button></div>').join(""):'<p class="pad muted">এখনো কোনো পুরোনো দিনের অর্ডার নেই। দিন শেষ হলে এখানে স্বয়ংক্রিয়ভাবে দেখা যাবে।</p>');
+      $("orderArchiveClose").onclick=()=>archivePanel.hidden=true;
+      archivePanel.querySelectorAll(".dailyPdf").forEach(btn=>btn.onclick=()=>{const group=groups.find(x=>x[0]===btn.dataset.day);if(group)downloadDailyPdf(group[0],group[1]);});
+    }
+    if(archiveButton)archiveButton.onclick=renderArchive;
     if (!rows.length) {
       box.innerHTML = '<p class="pad muted">এখনো কোনো অর্ডার নেই।</p>';
       return;
